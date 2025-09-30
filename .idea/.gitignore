@@ -6,3 +6,4 @@
 # Datasource local storage ignored files
 /dataSources/
 /dataSources.local.xml
+/code_smart-farm-sever/node_modules/
