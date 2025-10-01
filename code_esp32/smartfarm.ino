@@ -3,7 +3,7 @@
 #include "DHT.h"
 
 const char* ssid = "duong"; // Tên Wi-Fi của bạn
-const char* password = "1234567890"; // Mật khẩu Wi-Fi
+const char* password = "1234567890a"; // Mật khẩu Wi-Fi
 const char* mqtt_server = "broker.emqx.io"; // Mosquitto cục bộ
 const int mqtt_port = 1883;
 const char* mqtt_username = "duong1883"; // Không cần username
