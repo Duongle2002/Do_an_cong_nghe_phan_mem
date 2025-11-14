@@ -1,67 +1,16 @@
 #include <WiFi.h>
-#include <PubSubClient.h>
+#include <HTTPClient.h>
 #include "DHT.h"
+#include <WiFiManager.h>
 
-const char* ssid = "duong"; // Tên Wi-Fi của bạn
-const char* password = "1234567890"; // Mật khẩu Wi-Fi
-const char* mqtt_server = "broker.emqx.io"; // Mosquitto cục bộ
-const int mqtt_port = 1883;
-const char* mqtt_username = "duong1883"; // Không cần username
-const char* mqtt_password = "Duong1883"; // Không cần password
-const char* topic_data = "smartfarm/sensor";
-const char* topic_control = "smartfarm/control";
-
-// ==== Device Info ====
+const char* server_url = "http://<BACKEND_IP>:5000/api"; // Thay <BACKEND_IP> bằng IP backend
 const char* deviceId = "ESP32-001";
 
-// ==== DHT Config ====
 #define DHTPIN 4
 #define DHTTYPE DHT11
 DHT dht(DHTPIN, DHTTYPE);
-
-// ==== Relay Config ====
 #define RELAY_PIN 26
-
-// ==== Soil Sensor ====
 #define SOIL_PIN 34
-
-WiFiClient espClient;
-PubSubClient client(espClient);
-
-void reconnect() {
-  while (!client.connected()) {
-    Serial.print("🔄 Attempting MQTT connection...");
-    if (client.connect(deviceId)) {
-      Serial.println("✅ connected");
-      client.subscribe(topic_control);
-    } else {
-      Serial.print("❌ failed, rc=");
-      Serial.print(client.state());
-      Serial.println(" try again in 5s");
-      delay(5000);
-    }
-  }
-}
-
-void callback(char* topic, byte* payload, unsigned int length) {
-  String msg;
-  for (int i = 0; i < length; i++) msg += (char)payload[i];
-
-  Serial.print("📥 Message [");
-  Serial.print(topic);
-  Serial.print("]: ");
-  Serial.println(msg);
-
-  if (msg.indexOf(deviceId) != -1) {
-    if (msg.indexOf("ON") != -1) {
-      digitalWrite(RELAY_PIN, LOW);
-      Serial.println("🚀 Relay ON");
-    } else if (msg.indexOf("OFF") != -1) {
-      digitalWrite(RELAY_PIN, HIGH);
-      Serial.println("🛑 Relay OFF");
-    }
-  }
-}
 
 void setup() {
   Serial.begin(115200);
@@ -69,35 +18,93 @@ void setup() {
   pinMode(RELAY_PIN, OUTPUT);
   digitalWrite(RELAY_PIN, HIGH);
 
-  WiFi.begin(ssid, password);
-  Serial.print("🔌 Connecting WiFi...");
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("\n✅ WiFi connected");
+  // Sử dụng WiFiManager để cấu hình Wi-Fi qua web portal
+  WiFiManager wifiManager;
+  wifiManager.autoConnect("SmartFarm-Setup"); // Tên AP khi cấu hình
+  Serial.println("✅ WiFi connected");
   Serial.print("IP: "); Serial.println(WiFi.localIP());
-
-  client.setServer(mqtt_server, mqtt_port);
-  client.setCallback(callback);
 }
 
 void loop() {
-  if (!client.connected()) reconnect();
-  client.loop();
+  if (WiFi.status() != WL_CONNECTED) {
+    WiFi.begin(ssid, password);
+    delay(5000);
+    return;
+  }
 
   float temperature = dht.readTemperature();
   float humidity = dht.readHumidity();
   int soil = analogRead(SOIL_PIN);
 
-  String payload = "{";
-  payload += "\"deviceId\":\"" + String(deviceId) + "\",";
-  payload += "\"temperature\":" + String(temperature) + ",";
-  payload += "\"humidity\":" + String(humidity) + ",";
-  payload += "\"soilMoisture\":" + String(soil) + "}";
-  
-  client.publish(topic_data, payload.c_str());
-  Serial.println("📤 Data: " + payload);
+  // ==== Lấy ngưỡng cảnh báo từ backend ====
+  int temperatureMax = 35;
+  int soilMoistureMin = 500;
+  int humidityMin = 30;
+  int humidityMax = 90;
+
+  HTTPClient http;
+  String thresholdUrl = String(server_url) + "/alert-thresholds/" + deviceId;
+  http.begin(thresholdUrl);
+  int httpCode = http.GET();
+  if (httpCode == 200) {
+    String payload = http.getString();
+    int idx;
+    idx = payload.indexOf("temperatureMax");
+    if (idx != -1) temperatureMax = payload.substring(idx+15, payload.indexOf(',', idx)).toInt();
+    idx = payload.indexOf("soilMoistureMin");
+    if (idx != -1) soilMoistureMin = payload.substring(idx+16, payload.indexOf(',', idx)).toInt();
+    idx = payload.indexOf("humidityMin");
+    if (idx != -1) humidityMin = payload.substring(idx+12, payload.indexOf(',', idx)).toInt();
+    idx = payload.indexOf("humidityMax");
+    if (idx != -1) humidityMax = payload.substring(idx+12, payload.indexOf('}', idx)).toInt();
+  }
+  http.end();
+
+  // ==== Auto Logic ====
+  bool abnormal = false;
+  String alertMsg = "";
+
+  if (temperature > temperatureMax) {
+    abnormal = true;
+    alertMsg += "Nhiệt độ cao! ";
+    digitalWrite(RELAY_PIN, LOW);
+  }
+  if (soil < soilMoistureMin) {
+    abnormal = true;
+    alertMsg += "Độ ẩm đất thấp! ";
+    digitalWrite(RELAY_PIN, LOW);
+  }
+  if (humidity < humidityMin || humidity > humidityMax) {
+    abnormal = true;
+    alertMsg += "Độ ẩm không khí bất thường! ";
+    digitalWrite(RELAY_PIN, LOW);
+  }
+  if (!abnormal) {
+    digitalWrite(RELAY_PIN, HIGH);
+  }
+
+  // Gửi dữ liệu cảm biến lên backend
+  http.begin(String(server_url) + "/data");
+  http.addHeader("Content-Type", "application/json");
+  String dataPayload = "{";
+  dataPayload += "\"deviceId\":\"" + String(deviceId) + "\",";
+  dataPayload += "\"temperature\":" + String(temperature) + ",";
+  dataPayload += "\"humidity\":" + String(humidity) + ",";
+  dataPayload += "\"soilMoisture\":" + String(soil) + "}";
+  http.POST(dataPayload);
+  http.end();
+
+  // Gửi cảnh báo nếu bất thường
+  if (abnormal) {
+    http.begin(String(server_url) + "/alerts");
+    http.addHeader("Content-Type", "application/json");
+    String alertPayload = "{";
+    alertPayload += "\"deviceId\":\"" + String(deviceId) + "\",";
+    alertPayload += "\"alert\":\"" + alertMsg + "\"}";
+    http.POST(alertPayload);
+    http.end();
+    Serial.println("⚠️ Alert: " + alertPayload);
+  }
 
   delay(10000);
 }
