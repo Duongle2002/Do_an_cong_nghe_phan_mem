@@ -16,7 +16,7 @@
 // Relay pins (thay theo nối dây của bạn)
 #define RELAY_FAN_PIN 27
 #define RELAY_LIGHT_PIN 26
-#define RELAY_PUMP_PIN 25
+#define RELAY_PUMP_PIN 33
 const bool RELAY_ACTIVE_HIGH = true; // set true nếu relay bật khi HIGH, false nếu active LOW (đa số module relay dùng LOW)
 
 // LED báo trạng thái WiFi (đèn xanh). Thay GPIO nếu board bạn dùng LED khác.
