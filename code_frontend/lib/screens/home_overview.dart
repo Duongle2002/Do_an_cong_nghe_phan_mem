@@ -33,12 +33,18 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> {
     final auth = Provider.of<AuthService>(context, listen: false);
     try {
       final rawDevices = await Api.getDevices(auth.accessToken ?? '');
-      _devices = rawDevices.map((e) => Device.fromJson(e as Map<String, dynamic>)).toList();
+      _devices = rawDevices
+          .map((e) => Device.fromJson(e as Map<String, dynamic>))
+          .toList();
 
       // fetch latest sensor data for each device in parallel
       final futures = _devices.map((d) async {
         try {
-          final raw = await Api.getSensorData(auth.accessToken ?? '', d.id, limit: 1);
+          final raw = await Api.getSensorData(
+            auth.accessToken ?? '',
+            d.id,
+            limit: 1,
+          );
           if (raw.isNotEmpty) {
             final s = SensorData.fromJson(raw.first as Map<String, dynamic>);
             _latest[d.id] = s;
@@ -70,54 +76,89 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Welcome, $userName', style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              'Welcome, $userName',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             const SizedBox(height: 12),
-            const Text('Environment Overview', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text(
+              'Environment Overview',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 8),
             Expanded(
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
                   : _error != null
-                      ? Center(child: Text('Error: $_error'))
-                      : _devices.isEmpty
-                          ? const Center(child: Text('No devices'))
-                          : GridView.count(
-                              crossAxisCount: 2,
-                              childAspectRatio: 1.05,
-                              mainAxisSpacing: 8,
-                              crossAxisSpacing: 8,
-                              children: _devices.map((d) {
-                                final s = _latest[d.id];
-                                return GestureDetector(
-                                  onTap: () => Navigator.of(context).pushNamed('/devices'),
-                                  child: Card(
-                                    elevation: 2,
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(12.0),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(d.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                                          const SizedBox(height: 6),
-                                          Text(d.location ?? '', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                                          const Spacer(),
-                                          if (s != null) ...[
-                                            Text('Temp: ${s.temperature?.toStringAsFixed(1) ?? '—'} °C'),
-                                            Text('Hum: ${s.humidity?.toStringAsFixed(1) ?? '—'} %'),
-                                            Text('Soil: ${s.soilMoisture?.toStringAsFixed(1) ?? '—'}'),
-                                            Text('pH: ${s.pH?.toStringAsFixed(2) ?? '—'}'),
-                                            const SizedBox(height: 6),
-                                            Text('${s.timestamp.toLocal()}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
-                                          ] else ...[
-                                            const Text('No readings', style: TextStyle(color: Colors.grey)),
-                                          ]
-                                        ],
-                                      ),
+                  ? Center(child: Text('Error: $_error'))
+                  : _devices.isEmpty
+                  ? const Center(child: Text('No devices'))
+                  : GridView.count(
+                      crossAxisCount: 2,
+                      childAspectRatio: 1.05,
+                      mainAxisSpacing: 8,
+                      crossAxisSpacing: 8,
+                      children: _devices.map((d) {
+                        final s = _latest[d.id];
+                        return GestureDetector(
+                          onTap: () =>
+                              Navigator.of(context).pushNamed('/devices'),
+                          child: Card(
+                            elevation: 2,
+                            child: Padding(
+                              padding: const EdgeInsets.all(12.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    d.name,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
                                     ),
                                   ),
-                                );
-                              }).toList(),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    d.location ?? '',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  if (s != null) ...[
+                                    Text(
+                                      'Temp: ${s.temperature?.toStringAsFixed(1) ?? '—'} °C',
+                                    ),
+                                    Text(
+                                      'Hum: ${s.humidity?.toStringAsFixed(1) ?? '—'} %',
+                                    ),
+                                    Text(
+                                      'Soil: ${s.soilMoisture?.toStringAsFixed(1) ?? '—'}',
+                                    ),
+                                    Text(
+                                      'pH: ${s.pH?.toStringAsFixed(2) ?? '—'}',
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      '${s.timestamp.toLocal()}',
+                                      style: const TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                  ] else ...[
+                                    const Text(
+                                      'No readings',
+                                      style: TextStyle(color: Colors.grey),
+                                    ),
+                                  ],
+                                ],
+                              ),
                             ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
             ),
             const SizedBox(height: 8),
             Row(
@@ -129,11 +170,12 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> {
                 ),
                 const SizedBox(width: 12),
                 ElevatedButton(
-                  onPressed: () => Navigator.of(context).pushNamed('/schedules'),
+                  onPressed: () =>
+                      Navigator.of(context).pushNamed('/schedules'),
                   child: const Text('Manage Schedules'),
                 ),
               ],
-            )
+            ),
           ],
         ),
       ),

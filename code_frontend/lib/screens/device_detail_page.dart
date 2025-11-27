@@ -42,7 +42,9 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
         widget.device.id,
         limit: 100,
       );
-        _data = raw.map((e) => SensorData.fromJson(e as Map<String, dynamic>)).toList();
+      _data = raw
+          .map((e) => SensorData.fromJson(e as Map<String, dynamic>))
+          .toList();
     } catch (e) {
       // ignore for now
     } finally {
@@ -58,9 +60,13 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
         'target': target,
         'action': action,
       });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Command $action sent to $target')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Command $action sent to $target')),
+      );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to send command: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to send command: $e')));
     }
   }
 
@@ -89,7 +95,10 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text('Manual Controls', style: TextStyle(fontWeight: FontWeight.bold)),
+        const Text(
+          'Manual Controls',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,

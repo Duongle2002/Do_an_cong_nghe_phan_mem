@@ -51,10 +51,15 @@ class Api {
     String email,
     String password,
   ) async {
-    final resp = await post('/api/auth/login', {'email': email, 'password': password});
+    final resp = await post('/api/auth/login', {
+      'email': email,
+      'password': password,
+    });
     final body = _decodeBody(resp);
     if (resp.statusCode >= 400) {
-      final msg = body is Map && body['message'] != null ? body['message'] : resp.reasonPhrase;
+      final msg = body is Map && body['message'] != null
+          ? body['message']
+          : resp.reasonPhrase;
       throw Exception('Login failed: $msg');
     }
     if (body is Map<String, dynamic>) return body;
@@ -66,10 +71,16 @@ class Api {
     String email,
     String password,
   ) async {
-    final resp = await post('/api/auth/register', {'name': name, 'email': email, 'password': password});
+    final resp = await post('/api/auth/register', {
+      'name': name,
+      'email': email,
+      'password': password,
+    });
     final body = _decodeBody(resp);
     if (resp.statusCode >= 400) {
-      final msg = body is Map && body['message'] != null ? body['message'] : resp.reasonPhrase;
+      final msg = body is Map && body['message'] != null
+          ? body['message']
+          : resp.reasonPhrase;
       throw Exception('Register failed: $msg');
     }
     if (body is Map<String, dynamic>) return body;
@@ -80,12 +91,15 @@ class Api {
     final resp = await get('/api/devices', token: token);
     final body = _decodeBody(resp);
     if (resp.statusCode >= 400) {
-      final msg = body is Map && body['message'] != null ? body['message'] : resp.reasonPhrase;
+      final msg = body is Map && body['message'] != null
+          ? body['message']
+          : resp.reasonPhrase;
       throw Exception('Error fetching devices: $msg');
     }
     // some endpoints might wrap the list in an object: { devices: [...] }
     if (body is List) return body as List<dynamic>;
-    if (body is Map && body['devices'] is List) return body['devices'] as List<dynamic>;
+    if (body is Map && body['devices'] is List)
+      return body['devices'] as List<dynamic>;
     throw Exception('Unexpected devices response: ${body.runtimeType}');
   }
 
@@ -107,33 +121,47 @@ class Api {
     final resp = await get('/api/sensors', token: token, query: q);
     final body = _decodeBody(resp);
     if (resp.statusCode >= 400) {
-      final msg = body is Map && body['message'] != null ? body['message'] : resp.reasonPhrase;
+      final msg = body is Map && body['message'] != null
+          ? body['message']
+          : resp.reasonPhrase;
       throw Exception('Error fetching sensor data: $msg');
     }
     if (body is List) return body as List<dynamic>;
-    if (body is Map && body['items'] is List) return body['items'] as List<dynamic>;
+    if (body is Map && body['items'] is List)
+      return body['items'] as List<dynamic>;
     throw Exception('Unexpected sensors response: ${body.runtimeType}');
   }
 
   // Commands
-  static Future<Map<String, dynamic>> createCommand(String token, Map<String, dynamic> body) async {
+  static Future<Map<String, dynamic>> createCommand(
+    String token,
+    Map<String, dynamic> body,
+  ) async {
     final resp = await post('/api/commands', body, token: token);
     final b = _decodeBody(resp);
     if (resp.statusCode >= 400) {
-      final msg = b is Map && b['message'] != null ? b['message'] : resp.reasonPhrase;
+      final msg = b is Map && b['message'] != null
+          ? b['message']
+          : resp.reasonPhrase;
       throw Exception('Error creating command: $msg');
     }
     if (b is Map<String, dynamic>) return b;
     throw Exception('Unexpected command response');
   }
 
-  static Future<List<dynamic>> listCommands(String token, {required String deviceId, String? status}) async {
+  static Future<List<dynamic>> listCommands(
+    String token, {
+    required String deviceId,
+    String? status,
+  }) async {
     final q = {'deviceId': deviceId};
     if (status != null) q['status'] = status;
     final resp = await get('/api/commands', token: token, query: q);
     final b = _decodeBody(resp);
     if (resp.statusCode >= 400) {
-      final msg = b is Map && b['message'] != null ? b['message'] : resp.reasonPhrase;
+      final msg = b is Map && b['message'] != null
+          ? b['message']
+          : resp.reasonPhrase;
       throw Exception('Error listing commands: $msg');
     }
     if (b is List) return b;
@@ -141,14 +169,24 @@ class Api {
   }
 
   // Alerts
-  static Future<List<dynamic>> getAlerts(String token, {String? deviceId, bool? read}) async {
+  static Future<List<dynamic>> getAlerts(
+    String token, {
+    String? deviceId,
+    bool? read,
+  }) async {
     final q = <String, String>{};
     if (deviceId != null) q['deviceId'] = deviceId;
     if (read != null) q['read'] = read.toString();
-    final resp = await get('/api/alerts', token: token, query: q.isEmpty ? null : q);
+    final resp = await get(
+      '/api/alerts',
+      token: token,
+      query: q.isEmpty ? null : q,
+    );
     final b = _decodeBody(resp);
     if (resp.statusCode >= 400) {
-      final msg = b is Map && b['message'] != null ? b['message'] : resp.reasonPhrase;
+      final msg = b is Map && b['message'] != null
+          ? b['message']
+          : resp.reasonPhrase;
       throw Exception('Error fetching alerts: $msg');
     }
     if (b is List) return b;
@@ -156,11 +194,16 @@ class Api {
   }
 
   // Sensor ingest (for devices or manual testing)
-  static Future<Map<String, dynamic>> ingestSensor(String token, Map<String, dynamic> body) async {
+  static Future<Map<String, dynamic>> ingestSensor(
+    String token,
+    Map<String, dynamic> body,
+  ) async {
     final resp = await post('/api/sensors/ingest', body, token: token);
     final b = _decodeBody(resp);
     if (resp.statusCode >= 400) {
-      final msg = b is Map && b['message'] != null ? b['message'] : resp.reasonPhrase;
+      final msg = b is Map && b['message'] != null
+          ? b['message']
+          : resp.reasonPhrase;
       throw Exception('Error ingesting sensor data: $msg');
     }
     if (b is Map<String, dynamic>) return b;

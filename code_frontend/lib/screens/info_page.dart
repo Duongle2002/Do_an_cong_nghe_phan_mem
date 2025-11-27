@@ -40,7 +40,8 @@ class InfoPage extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 ElevatedButton.icon(
-                  onPressed: () => Navigator.of(context).pushNamed('/send-sensor'),
+                  onPressed: () =>
+                      Navigator.of(context).pushNamed('/send-sensor'),
                   icon: const Icon(Icons.upload),
                   label: const Text('Send Sensor Data'),
                 ),

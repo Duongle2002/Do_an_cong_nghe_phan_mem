@@ -21,7 +21,10 @@ class _RegisterPageState extends State<RegisterPage> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     _formKey.currentState!.save();
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       await Api.register(_name, _email, _password);
       // auto-login after register
@@ -29,9 +32,13 @@ class _RegisterPageState extends State<RegisterPage> {
       final ok = await auth.login(_email, _password);
       if (ok) Navigator.of(context).pop();
     } catch (e) {
-      setState(() { _error = e.toString(); });
+      setState(() {
+        _error = e.toString();
+      });
     } finally {
-      setState(() { _loading = false; });
+      setState(() {
+        _loading = false;
+      });
     }
   }
 
@@ -59,15 +66,19 @@ class _RegisterPageState extends State<RegisterPage> {
                 decoration: const InputDecoration(labelText: 'Password'),
                 obscureText: true,
                 onSaved: (v) => _password = v ?? '',
-                validator: (v) => (v == null || v.length < 6) ? 'Min 6 chars' : null,
+                validator: (v) =>
+                    (v == null || v.length < 6) ? 'Min 6 chars' : null,
               ),
               const SizedBox(height: 12),
-              if (_error != null) Text(_error!, style: const TextStyle(color: Colors.red)),
+              if (_error != null)
+                Text(_error!, style: const TextStyle(color: Colors.red)),
               const SizedBox(height: 8),
               ElevatedButton(
                 onPressed: _loading ? null : _submit,
-                child: _loading ? const CircularProgressIndicator() : const Text('Register'),
-              )
+                child: _loading
+                    ? const CircularProgressIndicator()
+                    : const Text('Register'),
+              ),
             ],
           ),
         ),
