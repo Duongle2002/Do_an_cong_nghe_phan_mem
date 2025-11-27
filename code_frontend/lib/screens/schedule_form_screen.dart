@@ -9,7 +9,6 @@ class ScheduleFormScreen extends StatefulWidget {
   @override
   State<ScheduleFormScreen> createState() => _ScheduleFormScreenState();
 }
-
 class _ScheduleFormScreenState extends State<ScheduleFormScreen> {
   final _formKey = GlobalKey<FormState>();
   String? _selectedDeviceId;
