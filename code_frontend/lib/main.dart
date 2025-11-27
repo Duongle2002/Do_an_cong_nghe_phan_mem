@@ -24,6 +24,7 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.green,
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
+      debugShowCheckedModeBanner: false,
       home: Consumer<AppState>(
         builder: (context, appState, child) {
           if (appState.currentUser == null) {
