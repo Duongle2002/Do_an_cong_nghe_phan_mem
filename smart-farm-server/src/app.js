@@ -10,7 +10,7 @@ const { errorHandler, notFound } = require('./middleware/error');
 // Routers
 const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/users.routes');
-const deviceRoutes = require('./routes/devices.routes');
+const deviceRoutes = require('./routes/devices.routes');  
 const sensorRoutes = require('./routes/sensors.routes');
 const commandRoutes = require('./routes/commands.routes');
 const scheduleRoutes = require('./routes/schedules.routes');
