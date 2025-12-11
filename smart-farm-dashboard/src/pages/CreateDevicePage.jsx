@@ -44,15 +44,15 @@ export default function CreateDevicePage() {
           <form onSubmit={onSubmit} style={{ display: 'grid', gap: 12 }}>
             <label>
               Tên
-              <input value={form.name} onChange={(e) => setField('name', e.target.value)} required />
+              <input type="text" value={form.name} onChange={(e) => setField('name', e.target.value)} required />
             </label>
             <label>
               External ID (giống ESP)
-              <input value={form.externalId} onChange={(e) => setField('externalId', e.target.value)} placeholder="esp32-XXXX" />
+              <input type="text" value={form.externalId} onChange={(e) => setField('externalId', e.target.value)} placeholder="esp32-XXXX" />
             </label>
             <label>
               Vị trí (tùy chọn)
-              <input value={form.location} onChange={(e) => setField('location', e.target.value)} />
+              <input type="text" value={form.location} onChange={(e) => setField('location', e.target.value)} />
             </label>
             {error && <div style={{ color: '#ff9b9b' }}>{error}</div>}
             <div style={{ display: 'flex', gap: 8 }}>

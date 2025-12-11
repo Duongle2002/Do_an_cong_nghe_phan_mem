@@ -2,6 +2,7 @@ const mqtt = require('mqtt');
 const Device = require('../models/Device');
 const SensorData = require('../models/SensorData');
 const Command = require('../models/Command');
+const { checkAlertRules } = require('../services/alertService');
 
 let api = { publishControl: () => {} };
 let appRef; // to emit SSE
@@ -84,6 +85,8 @@ function initMqtt(app) {
         };
         try {
           await SensorData.create(doc);
+          // Check alert rules asynchronously (don't block response)
+          checkAlertRules(device._id, doc).catch(err => console.error('Alert check failed:', err));
         } catch (e) {
           console.error('Failed to persist telemetry for', externalId, e.message);
           return;

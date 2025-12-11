@@ -1,6 +1,7 @@
 const { query, body } = require('express-validator');
 const SensorData = require('../models/SensorData');
 const Device = require('../models/Device');
+const { checkAlertRules } = require('../services/alertService');
 
 const ingestValidators = [
   body('deviceId').isString().notEmpty(),
@@ -8,17 +9,22 @@ const ingestValidators = [
   body('humidity').optional().isFloat(),
   body('soilMoisture').optional().isFloat(),
   body('pH').optional().isFloat(),
+  body('lux').optional().isFloat(),
   body('timestamp').optional().isISO8601(),
 ];
 
 async function ingest(req, res) {
-  const { deviceId, temperature, humidity, soilMoisture, pH, timestamp } = req.body;
+  const { deviceId, temperature, humidity, soilMoisture, pH, lux, timestamp } = req.body;
   const device = await Device.findById(deviceId);
   if (!device) return res.status(404).json({ message: 'Device not found' });
-  if (req.user.role !== 'Admin' && device.ownerId.toString() !== req.user.id) {
+  if (req.user && req.user.role !== 'Admin' && device.ownerId.toString() !== req.user.id) {
     return res.status(403).json({ message: 'Forbidden' });
   }
-  const data = await SensorData.create({ deviceId, temperature, humidity, soilMoisture, pH, timestamp: timestamp || new Date() });
+  const data = await SensorData.create({ deviceId, temperature, humidity, soilMoisture, pH, lux, timestamp: timestamp || new Date() });
+  
+  // Check alert rules asynchronously (don't block response)
+  checkAlertRules(deviceId, { temperature, humidity, soilMoisture, lux }).catch(err => console.error('Alert check failed:', err));
+  
   res.status(201).json(data);
 }
 
@@ -35,7 +41,7 @@ async function list(req, res) {
 
   const device = await Device.findById(deviceId);
   if (!device) return res.status(404).json({ message: 'Device not found' });
-  if (req.user.role !== 'Admin' && device.ownerId.toString() !== req.user.id) {
+  if (req.user && req.user.role !== 'Admin' && device.ownerId.toString() !== req.user.id) {
     return res.status(403).json({ message: 'Forbidden' });
   }
 
