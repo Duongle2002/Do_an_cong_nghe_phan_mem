@@ -3,14 +3,14 @@ class SensorData {
   final double? temperature;
   final double? humidity;
   final double? soilMoisture;
-  final double? pH;
+  final double? lux;
 
   SensorData({
     required this.timestamp,
     this.temperature,
     this.humidity,
     this.soilMoisture,
-    this.pH,
+    this.lux,
   });
 
   factory SensorData.fromJson(Map<String, dynamic> j) => SensorData(
@@ -24,6 +24,6 @@ class SensorData {
     soilMoisture: j['soilMoisture'] != null
         ? (j['soilMoisture'] as num).toDouble()
         : null,
-    pH: j['pH'] != null ? (j['pH'] as num).toDouble() : null,
+    lux: j['lux'] != null ? (j['lux'] as num).toDouble() : null,
   );
 }

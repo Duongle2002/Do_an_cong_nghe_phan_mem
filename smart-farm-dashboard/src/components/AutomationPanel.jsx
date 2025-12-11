@@ -41,22 +41,33 @@ export default function AutomationPanel({ device, onSaved }) {
   });
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
+  const [dirty, setDirty] = useState(false);
+  const [lastDeviceId, setLastDeviceId] = useState(null);
 
   useEffect(() => {
     if (!device) return;
-    setForm({
-      autoFanEnabled: !!device.autoFanEnabled,
-      autoFanTempAbove: device.autoFanTempAbove ?? '',
-      autoFanHysteresis: device.autoFanHysteresis ?? '',
-      autoPumpEnabled: !!device.autoPumpEnabled,
-      autoPumpSoilBelow: device.autoPumpSoilBelow ?? '',
-      autoPumpHysteresis: device.autoPumpHysteresis ?? '',
-      autoLightEnabled: !!device.autoLightEnabled,
-      autoLightLuxBelow: device.autoLightLuxBelow ?? '',
-      autoLightHysteresis: device.autoLightHysteresis ?? '',
-      minToggleIntervalSec: device.minToggleIntervalSec ?? '',
-    });
-  }, [device]);
+    // Only apply incoming device values if we switched to a different device
+    // or if the form is not currently being edited (not dirty)
+    const devId = device._id || device.id;
+    const isDeviceChanged = devId && devId !== lastDeviceId;
+    if (isDeviceChanged || !dirty) {
+      setForm({
+        autoFanEnabled: !!device.autoFanEnabled,
+        autoFanTempAbove: device.autoFanTempAbove ?? '',
+        autoFanHysteresis: device.autoFanHysteresis ?? '',
+        autoPumpEnabled: !!device.autoPumpEnabled,
+        autoPumpSoilBelow: device.autoPumpSoilBelow ?? '',
+        autoPumpHysteresis: device.autoPumpHysteresis ?? '',
+        autoLightEnabled: !!device.autoLightEnabled,
+        autoLightLuxBelow: device.autoLightLuxBelow ?? '',
+        autoLightHysteresis: device.autoLightHysteresis ?? '',
+        minToggleIntervalSec: device.minToggleIntervalSec ?? '',
+      });
+      setLastDeviceId(devId || null);
+      // Applying values from device is not a user edit, keep dirty=false
+      setDirty(false);
+    }
+  }, [device, dirty, lastDeviceId]);
 
   function numberOrUndefined(v) {
     if (v === '' || v === null || v === undefined) return undefined;
@@ -83,11 +94,31 @@ export default function AutomationPanel({ device, onSaved }) {
       const res = await api.put(`/api/devices/${device._id}`, payload);
       setMsg('Saved');
       onSaved && onSaved(res.data);
+      setDirty(false);
     } catch (e) {
       setMsg(e.response?.data?.message || 'Save failed');
     } finally {
       setSaving(false);
     }
+  }
+
+  function markDirty(){ if (!dirty) setDirty(true); }
+
+  function resetFromDevice(){
+    if (!device) return;
+    setForm({
+      autoFanEnabled: !!device.autoFanEnabled,
+      autoFanTempAbove: device.autoFanTempAbove ?? '',
+      autoFanHysteresis: device.autoFanHysteresis ?? '',
+      autoPumpEnabled: !!device.autoPumpEnabled,
+      autoPumpSoilBelow: device.autoPumpSoilBelow ?? '',
+      autoPumpHysteresis: device.autoPumpHysteresis ?? '',
+      autoLightEnabled: !!device.autoLightEnabled,
+      autoLightLuxBelow: device.autoLightLuxBelow ?? '',
+      autoLightHysteresis: device.autoLightHysteresis ?? '',
+      minToggleIntervalSec: device.minToggleIntervalSec ?? '',
+    });
+    setDirty(false);
   }
 
   return (
@@ -102,7 +133,7 @@ export default function AutomationPanel({ device, onSaved }) {
         <fieldset style={{ border:'1px solid #eee', padding:10 }}>
           <legend>Fan</legend>
           <label style={{ display:'flex', gap:6, alignItems:'center' }}>
-            <input type="checkbox" checked={form.autoFanEnabled} onChange={e=>setForm(f=>({...f, autoFanEnabled:e.target.checked}))} /> Enable Fan Automation
+            <input type="checkbox" checked={form.autoFanEnabled} onChange={e=>{ setForm(f=>({...f, autoFanEnabled:e.target.checked})); markDirty(); }} /> Enable Fan Automation
           </label>
           <RangeField
             label="Temperature Threshold"
@@ -110,7 +141,7 @@ export default function AutomationPanel({ device, onSaved }) {
             max={60}
             step={0.5}
             value={form.autoFanTempAbove === '' ? '' : Number(form.autoFanTempAbove)}
-            onChange={(v)=>setForm(f=>({...f, autoFanTempAbove:v}))}
+            onChange={(v)=>{ setForm(f=>({...f, autoFanTempAbove:v})); markDirty(); }}
             unit="°C"
             disabled={!form.autoFanEnabled}
           />
@@ -120,7 +151,7 @@ export default function AutomationPanel({ device, onSaved }) {
             max={10}
             step={0.5}
             value={form.autoFanHysteresis === '' ? '' : Number(form.autoFanHysteresis)}
-            onChange={(v)=>setForm(f=>({...f, autoFanHysteresis:v}))}
+            onChange={(v)=>{ setForm(f=>({...f, autoFanHysteresis:v})); markDirty(); }}
             unit="°C"
             disabled={!form.autoFanEnabled}
           />
@@ -129,7 +160,7 @@ export default function AutomationPanel({ device, onSaved }) {
         <fieldset style={{ border:'1px solid #eee', padding:10 }}>
           <legend>Pump</legend>
           <label style={{ display:'flex', gap:6, alignItems:'center' }}>
-            <input type="checkbox" checked={form.autoPumpEnabled} onChange={e=>setForm(f=>({...f, autoPumpEnabled:e.target.checked}))} /> Enable Pump Automation
+            <input type="checkbox" checked={form.autoPumpEnabled} onChange={e=>{ setForm(f=>({...f, autoPumpEnabled:e.target.checked})); markDirty(); }} /> Enable Pump Automation
           </label>
           <RangeField
             label="Soil Moisture Threshold"
@@ -137,7 +168,7 @@ export default function AutomationPanel({ device, onSaved }) {
             max={100}
             step={1}
             value={form.autoPumpSoilBelow === '' ? '' : Number(form.autoPumpSoilBelow)}
-            onChange={(v)=>setForm(f=>({...f, autoPumpSoilBelow:v}))}
+            onChange={(v)=>{ setForm(f=>({...f, autoPumpSoilBelow:v})); markDirty(); }}
             unit="%"
             disabled={!form.autoPumpEnabled}
           />
@@ -147,7 +178,7 @@ export default function AutomationPanel({ device, onSaved }) {
             max={30}
             step={1}
             value={form.autoPumpHysteresis === '' ? '' : Number(form.autoPumpHysteresis)}
-            onChange={(v)=>setForm(f=>({...f, autoPumpHysteresis:v}))}
+            onChange={(v)=>{ setForm(f=>({...f, autoPumpHysteresis:v})); markDirty(); }}
             unit="%"
             disabled={!form.autoPumpEnabled}
           />
@@ -156,7 +187,7 @@ export default function AutomationPanel({ device, onSaved }) {
         <fieldset style={{ border:'1px solid #eee', padding:10 }}>
           <legend>Light</legend>
           <label style={{ display:'flex', gap:6, alignItems:'center' }}>
-            <input type="checkbox" checked={form.autoLightEnabled} onChange={e=>setForm(f=>({...f, autoLightEnabled:e.target.checked}))} /> Enable Light Automation
+            <input type="checkbox" checked={form.autoLightEnabled} onChange={e=>{ setForm(f=>({...f, autoLightEnabled:e.target.checked})); markDirty(); }} /> Enable Light Automation
           </label>
           <RangeField
             label="Lux Threshold"
@@ -164,7 +195,7 @@ export default function AutomationPanel({ device, onSaved }) {
             max={1000}
             step={5}
             value={form.autoLightLuxBelow === '' ? '' : Number(form.autoLightLuxBelow)}
-            onChange={(v)=>setForm(f=>({...f, autoLightLuxBelow:v}))}
+            onChange={(v)=>{ setForm(f=>({...f, autoLightLuxBelow:v})); markDirty(); }}
             unit="lux"
             disabled={!form.autoLightEnabled}
           />
@@ -174,7 +205,7 @@ export default function AutomationPanel({ device, onSaved }) {
             max={300}
             step={5}
             value={form.autoLightHysteresis === '' ? '' : Number(form.autoLightHysteresis)}
-            onChange={(v)=>setForm(f=>({...f, autoLightHysteresis:v}))}
+            onChange={(v)=>{ setForm(f=>({...f, autoLightHysteresis:v})); markDirty(); }}
             unit="lux"
             disabled={!form.autoLightEnabled}
           />
@@ -189,13 +220,14 @@ export default function AutomationPanel({ device, onSaved }) {
             max={300}
             step={5}
             value={form.minToggleIntervalSec === '' ? '' : Number(form.minToggleIntervalSec)}
-            onChange={(v)=>setForm(f=>({...f, minToggleIntervalSec:v}))}
+            onChange={(v)=>{ setForm(f=>({...f, minToggleIntervalSec:v})); markDirty(); }}
             unit="sec"
           />
         </fieldset>
 
         <div style={{ display:'flex', gap:12, alignItems:'center' }}>
           <button className="btn btn-primary" type="submit" disabled={saving}>{saving ? 'Đang lưu...' : 'Lưu cấu hình'}</button>
+          <button type="button" className="btn" onClick={resetFromDevice} disabled={saving || !dirty}>Khôi phục</button>
           {msg && <span className="small" style={{ color: msg==='Saved' ? '#7cffc5' : '#ff9b9b' }}>{msg}</span>}
         </div>
       </div>

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import api from '../api/client'
+import RealtimeDeviceCard from '../components/RealtimeDeviceCard'
 
 export default function DevicesPage() {
   const navigate = useNavigate()
@@ -25,35 +26,23 @@ export default function DevicesPage() {
     return () => { ignore = true }
   }, [])
 
-  if (loading) return <div>Loading devices...</div>
+  if (loading) return <div className="muted">Loading devices...</div>
   if (error) return <div style={{ color: 'red' }}>{error}</div>
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <h3>Devices</h3>
-        <button onClick={() => navigate('/devices/new')}>+ Create Device</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-outline" onClick={() => navigate('/devices/new')}>+ Create Device</button>
+        </div>
       </div>
-      <table border="1" cellPadding="6" style={{ borderCollapse: 'collapse' }}>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Status</th>
-            <th>External ID</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map(d => (
-            <tr key={d._id}>
-              <td>{d.name}</td>
-              <td>{d.status}</td>
-              <td>{d.externalId || '-'}</td>
-              <td><Link to={`/devices/${d._id}`}>View</Link></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+
+      <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
+        {items.map(d => (
+          <RealtimeDeviceCard key={d._id} device={d} />
+        ))}
+      </div>
     </div>
   )
 }

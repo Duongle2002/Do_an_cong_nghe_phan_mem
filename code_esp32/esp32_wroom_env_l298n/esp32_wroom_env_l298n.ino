@@ -35,8 +35,10 @@ inline void setWifiLed(bool on) {
 
 // --- Cấu hình mạng / MQTT ---
 const char* WIFI_SSID = "smart-farm";
+// const char* WIFI_SSID = "duong";
 const char* WIFI_PASS = "1234567890a";
-const char* MQTT_SERVER = "192.168.1.1"; // thay bằng địa chỉ broker của bạn
+// const char* MQTT_SERVER = "broker.emqx.io"; // thay bằng địa chỉ broker của bạn
+const char* MQTT_SERVER = "192.168.2.1"; // thay bằng địa chỉ broker của bạn
 const uint16_t MQTT_PORT = 1883;
 const char* MQTT_USER = ""; // để rỗng nếu không auth
 const char* MQTT_PASSWD = "";
@@ -49,7 +51,7 @@ const int SOIL_WET = 700;   // ví dụ: ướt
 const int SOIL_DRY = 2500;  // ví dụ: khô
 
 // --- Thời gian ---
-const unsigned long PUBLISH_INTERVAL_MS = 10000UL; // gửi mỗi 10s
+const unsigned long PUBLISH_INTERVAL_MS = 1000UL; // gửi mỗi 10s
 
 // --- Thư viện / đối tượng ---
 BH1750 lightMeter;

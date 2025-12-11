@@ -21,7 +21,8 @@
 // --------- CONFIG ---------
 const char* WIFI_SSID = "smart-farm";
 const char* WIFI_PASS = "1234567890a";
-const char* MQTT_SERVER = "192.168.1.1";
+const char* MQTT_SERVER = "192.168.2.1";
+// const char* MQTT_SERVER = "broker.emqx.io"; // thay bằng địa chỉ broker của bạn
 const uint16_t MQTT_PORT = 1883;
 const char* MQTT_USER = "";
 const char* MQTT_PASSWD = "";
@@ -230,9 +231,9 @@ void updateDisplay() {
   if (!isnan(current.humidity)) display.print(current.humidity,1); else display.print("--");
   display.println(" %");
 
-  display.print("Pres: ");
-  if (!isnan(current.pressure_hpa)) display.print(current.pressure_hpa,1); else display.print("--");
-  display.println(" hPa");
+  // display.print("Pres: ");
+  // if (!isnan(current.pressure_hpa)) display.print(current.pressure_hpa,1); else display.print("--");
+  // display.println(" hPa");
 
   display.print("Lux:  ");
   if (!isnan(current.lux)) display.print((int)current.lux); else display.print("--");

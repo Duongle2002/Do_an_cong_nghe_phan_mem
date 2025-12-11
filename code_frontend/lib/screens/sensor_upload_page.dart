@@ -16,7 +16,7 @@ class _SensorUploadPageState extends State<SensorUploadPage> {
   String _temperature = '';
   String _humidity = '';
   String _soil = '';
-  String _pH = '';
+  String _lux = '';
   bool _loading = false;
   String? _error;
 
@@ -34,7 +34,7 @@ class _SensorUploadPageState extends State<SensorUploadPage> {
         body['temperature'] = double.parse(_temperature);
       if (_humidity.isNotEmpty) body['humidity'] = double.parse(_humidity);
       if (_soil.isNotEmpty) body['soilMoisture'] = double.parse(_soil);
-      if (_pH.isNotEmpty) body['pH'] = double.parse(_pH);
+      if (_lux.isNotEmpty) body['lux'] = double.parse(_lux);
       await Api.ingestSensor(auth.accessToken ?? '', body);
       ScaffoldMessenger.of(
         context,
@@ -53,7 +53,6 @@ class _SensorUploadPageState extends State<SensorUploadPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Send Sensor Data')),
       body: Padding(
         padding: const EdgeInsets.all(12.0),
         child: Form(
@@ -81,9 +80,9 @@ class _SensorUploadPageState extends State<SensorUploadPage> {
                 onSaved: (v) => _soil = v ?? '',
               ),
               TextFormField(
-                decoration: const InputDecoration(labelText: 'pH'),
+                decoration: const InputDecoration(labelText: 'Lux'),
                 keyboardType: TextInputType.number,
-                onSaved: (v) => _pH = v ?? '',
+                onSaved: (v) => _lux = v ?? '',
               ),
               const SizedBox(height: 12),
               if (_error != null)

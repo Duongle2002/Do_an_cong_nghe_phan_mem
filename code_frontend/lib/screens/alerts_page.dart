@@ -46,7 +46,6 @@ class _AlertsPageState extends State<AlertsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Alerts')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null

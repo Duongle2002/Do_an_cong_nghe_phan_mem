@@ -15,6 +15,7 @@ const sensorRoutes = require('./routes/sensors.routes');
 const commandRoutes = require('./routes/commands.routes');
 const scheduleRoutes = require('./routes/schedules.routes');
 const alertRoutes = require('./routes/alerts.routes');
+const alertRulesRoutes = require('./routes/alertRules.routes');
 const logRoutes = require('./routes/logs.routes');
 const { authenticate } = require('./middleware/auth');
 const { verifyAccessToken } = require('./utils/jwt');
@@ -53,6 +54,7 @@ app.use('/api/sensors', sensorRoutes);
 app.use('/api/commands', commandRoutes);
 app.use('/api/schedules', scheduleRoutes);
 app.use('/api/alerts', alertRoutes);
+app.use('/api/alert-rules', alertRulesRoutes);
 app.use('/api/logs', logRoutes);
 
 // --- Server-Sent Events: live telemetry/actuator stream ---
