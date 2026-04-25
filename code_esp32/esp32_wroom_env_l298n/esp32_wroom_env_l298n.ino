@@ -35,10 +35,9 @@ inline void setWifiLed(bool on) {
 
 // --- Cấu hình mạng / MQTT ---
 const char* WIFI_SSID = "smart-farm";
-// const char* WIFI_SSID = "duong";
+// const char* WIFI_SSID = "TuMy";
 const char* WIFI_PASS = "1234567890a";
-// const char* MQTT_SERVER = "broker.emqx.io"; // thay bằng địa chỉ broker của bạn
-const char* MQTT_SERVER = "192.168.2.1"; // thay bằng địa chỉ broker của bạn
+const char* MQTT_SERVER = "broker.emqx.io"; // MQTT broker public
 const uint16_t MQTT_PORT = 1883;
 const char* MQTT_USER = ""; // để rỗng nếu không auth
 const char* MQTT_PASSWD = "";

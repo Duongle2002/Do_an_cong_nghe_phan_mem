@@ -21,8 +21,8 @@
 // --------- CONFIG ---------
 const char* WIFI_SSID = "smart-farm";
 const char* WIFI_PASS = "1234567890a";
-const char* MQTT_SERVER = "192.168.2.1";
-// const char* MQTT_SERVER = "broker.emqx.io"; // thay bằng địa chỉ broker của bạn
+const char* MQTT_SERVER = "broker.emqx.io";
+// const char* MQTT_SERVER = "192.168.2.1"; // thay bằng địa chỉ broker của bạn
 const uint16_t MQTT_PORT = 1883;
 const char* MQTT_USER = "";
 const char* MQTT_PASSWD = "";

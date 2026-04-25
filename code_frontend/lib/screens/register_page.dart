@@ -44,41 +44,107 @@ class _RegisterPageState extends State<RegisterPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
-      body: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              TextFormField(
-                decoration: const InputDecoration(labelText: 'Name'),
-                onSaved: (v) => _name = v ?? '',
-                validator: (v) => (v == null || v.isEmpty) ? 'Required' : null,
-              ),
-              TextFormField(
-                decoration: const InputDecoration(labelText: 'Email'),
-                onSaved: (v) => _email = v ?? '',
-                validator: (v) => (v == null || v.isEmpty) ? 'Required' : null,
-              ),
-              TextFormField(
-                decoration: const InputDecoration(labelText: 'Password'),
-                obscureText: true,
-                onSaved: (v) => _password = v ?? '',
-                validator: (v) =>
-                    (v == null || v.length < 6) ? 'Min 6 chars' : null,
-              ),
-              const SizedBox(height: 12),
-              if (_error != null)
-                Text(_error!, style: const TextStyle(color: Colors.red)),
-              const SizedBox(height: 8),
-              ElevatedButton(
-                onPressed: _loading ? null : _submit,
-                child: _loading
-                    ? const CircularProgressIndicator()
-                    : const Text('Register'),
-              ),
-            ],
+      backgroundColor: theme.colorScheme.background,
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'Register',
+                  style: TextStyle(
+                    fontSize: 36,
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(height: 48),
+                TextFormField(
+                  decoration: InputDecoration(
+                    labelText: 'Name',
+                    prefixIcon: Icon(
+                      Icons.person,
+                      color: theme.colorScheme.primary,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  onSaved: (v) => _name = v ?? '',
+                  validator: (v) =>
+                      (v == null || v.isEmpty) ? 'Required' : null,
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  decoration: InputDecoration(
+                    labelText: 'Email',
+                    prefixIcon: Icon(
+                      Icons.email,
+                      color: theme.colorScheme.primary,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  onSaved: (v) => _email = v ?? '',
+                  validator: (v) =>
+                      (v == null || v.isEmpty) ? 'Required' : null,
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  decoration: InputDecoration(
+                    labelText: 'Password',
+                    prefixIcon: Icon(
+                      Icons.lock,
+                      color: theme.colorScheme.primary,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  obscureText: true,
+                  onSaved: (v) => _password = v ?? '',
+                  validator: (v) =>
+                      (v == null || v.length < 6) ? 'Min 6 chars' : null,
+                ),
+                const SizedBox(height: 24),
+                if (_error != null)
+                  Text(
+                    _error!,
+                    style: TextStyle(color: theme.colorScheme.error),
+                  ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _loading ? null : _submit,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: theme.colorScheme.primary,
+                      foregroundColor: theme.colorScheme.onPrimary,
+                    ),
+                    child: _loading
+                        ? CircularProgressIndicator(
+                            color: theme.colorScheme.onPrimary,
+                          )
+                        : Text('Register', style: TextStyle(fontSize: 18)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(
+                    'Already have an account? Login',
+                    style: TextStyle(color: theme.colorScheme.secondary),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

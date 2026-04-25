@@ -37,6 +37,7 @@ function initMqtt(app) {
   client.on('error', (err) => console.error('MQTT error', err.message));
 
   client.on('message', async (topic, payload) => {
+    console.log('MQTT received:', topic, payload.toString());
     try {
       const parts = topic.split('/');
       const msg = payload.toString();

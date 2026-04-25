@@ -10,17 +10,25 @@ class EmailService {
     const emailPort = process.env.EMAIL_PORT || 587;
 
     this.enabled = emailUser && emailPass;
+    this.emailUser = emailUser;
 
     if (this.enabled) {
+      const portNum = Number(emailPort || 587);
       this.transporter = nodemailer.createTransport({
         host: emailHost,
-        port: emailPort,
-        secure: emailPort === 465,
+        port: portNum,
+        secure: portNum === 465,
         auth: {
           user: emailUser,
           pass: emailPass,
         },
+        tls: { rejectUnauthorized: true },
       });
+
+      // verify transporter early so misconfig is visible at startup
+      this.transporter.verify()
+        .then(() => console.log('Email transporter verified'))
+        .catch(err => console.error('Email transporter verify failed:', err));
     } else {
       console.warn('Email service disabled: EMAIL_USER or EMAIL_PASS not set');
     }
@@ -65,7 +73,7 @@ class EmailService {
       `;
 
       await this.transporter.sendMail({
-        from: process.env.EMAIL_USER,
+        from: this.emailUser ? `"Smart Farm" <${this.emailUser}>` : process.env.EMAIL_USER,
         to: toEmail,
         subject,
         html: htmlContent,

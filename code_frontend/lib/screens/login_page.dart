@@ -18,42 +18,91 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              TextFormField(
-                controller: _emailCtl,
-                decoration: const InputDecoration(labelText: 'Email'),
-                validator: (v) =>
-                    (v == null || v.isEmpty) ? 'Enter email' : null,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _passCtl,
-                decoration: const InputDecoration(labelText: 'Password'),
-                obscureText: true,
-                validator: (v) =>
-                    (v == null || v.isEmpty) ? 'Enter password' : null,
-              ),
-              const SizedBox(height: 20),
-              if (_error != null)
-                Text(_error!, style: const TextStyle(color: Colors.red)),
-              ElevatedButton(
-                onPressed: _loading ? null : () => _submit(context),
-                child: _loading
-                    ? const CircularProgressIndicator()
-                    : const Text('Login'),
-              ),
-              const SizedBox(height: 12),
-              TextButton(
-                onPressed: () => Navigator.of(context).pushNamed('/register'),
-                child: const Text('Create an account'),
-              ),
-            ],
+      backgroundColor: theme.colorScheme.background,
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'Login',
+                  style: TextStyle(
+                    fontSize: 36,
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(height: 48),
+                TextFormField(
+                  controller: _emailCtl,
+                  decoration: InputDecoration(
+                    labelText: 'Email',
+                    prefixIcon: Icon(
+                      Icons.email,
+                      color: theme.colorScheme.primary,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  validator: (v) =>
+                      (v == null || v.isEmpty) ? 'Enter email' : null,
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _passCtl,
+                  decoration: InputDecoration(
+                    labelText: 'Password',
+                    prefixIcon: Icon(
+                      Icons.lock,
+                      color: theme.colorScheme.primary,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  obscureText: true,
+                  validator: (v) =>
+                      (v == null || v.isEmpty) ? 'Enter password' : null,
+                ),
+                const SizedBox(height: 24),
+                if (_error != null)
+                  Text(
+                    _error!,
+                    style: TextStyle(color: theme.colorScheme.error),
+                  ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _loading ? null : () => _submit(context),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: theme.colorScheme.primary,
+                      foregroundColor: theme.colorScheme.onPrimary,
+                    ),
+                    child: _loading
+                        ? CircularProgressIndicator(
+                            color: theme.colorScheme.onPrimary,
+                          )
+                        : Text('Login', style: TextStyle(fontSize: 18)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pushNamed('/register'),
+                  child: Text(
+                    'Create an account',
+                    style: TextStyle(color: theme.colorScheme.secondary),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

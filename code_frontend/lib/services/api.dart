@@ -1,19 +1,16 @@
 import 'dart:convert';
-import 'dart:io' show Platform;
 import 'package:http/http.dart' as http;
 import 'dart:async';
 
 class Api {
   // Base URL selection rules:
   // - If built/run with `--dart-define=API_BASE=...` that value is used.
-  // - Otherwise on Android emulator use 10.0.2.2 to reach host machine.
-  // - On other platforms default to localhost:4000.
+  // - Otherwise default to production server.
   static String baseUrl = (() {
     final fromEnv = const String.fromEnvironment('API_BASE', defaultValue: '');
     if (fromEnv.isNotEmpty) return fromEnv;
-    if (Platform.isAndroid) return 'http://10.0.2.2:4000';
 
-    return 'http://192.168.2.142:4000';
+    return 'https://server.duongle.io.vn';
   })();
 
   /// Change the base URL at runtime (useful for in-app settings)
