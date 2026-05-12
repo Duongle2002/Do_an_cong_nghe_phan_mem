@@ -33,40 +33,39 @@ class MyApp extends StatelessWidget {
       child: MaterialApp(
         title: 'Smart Farm',
         theme: ThemeData(
+          useMaterial3: true,
           colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF558B2F), // primary moss green
-            primary: const Color(0xFF558B2F),
-            secondary: const Color(0xFFFF7043), // CTA burnt orange
-            background: const Color(0xFFFFF8E1),
-            surface: const Color(0xFFECEFF1),
-            onPrimary: const Color(0xFFFFFFFF),
-            onSurface: const Color(0xFF4E342E),
+            seedColor: const Color(0xFF2E7D32),
+            primary: const Color(0xFF2E7D32),
+            secondary: const Color(0xFF795548),
+            surface: const Color(0xFFF4F7F2),
           ),
-          scaffoldBackgroundColor: const Color(0xFFFFF8E1),
+          scaffoldBackgroundColor: const Color(0xFFF4F7F2),
           appBarTheme: const AppBarTheme(
-            backgroundColor: Color(0xFFECEFF1),
-            foregroundColor: Color(0xFF4E342E),
+            backgroundColor: Color(0xFFF4F7F2),
+            foregroundColor: Colors.black87,
             elevation: 0,
-            centerTitle: false,
-          ),
-          elevatedButtonTheme: ElevatedButtonThemeData(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF558B2F),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
+            centerTitle: true,
+            titleTextStyle: TextStyle(
+              color: Colors.black87,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
             ),
           ),
-          floatingActionButtonTheme: const FloatingActionButtonThemeData(
-            backgroundColor: Color(0xFF558B2F),
+          cardTheme: CardThemeData(
+            elevation: 0,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            color: Colors.white,
           ),
           bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-            selectedItemColor: Color(0xFF558B2F),
-            unselectedItemColor: Color(0xFF7b6a63),
-            backgroundColor: Color(0xFFFFF8E1),
+            selectedItemColor: Color(0xFF2E7D32),
+            unselectedItemColor: Colors.grey,
+            backgroundColor: Colors.white,
+            type: BottomNavigationBarType.fixed,
+            elevation: 10,
           ),
         ),
+        debugShowCheckedModeBanner: false,
         routes: {
           '/devices': (_) => const DevicesPage(),
           '/schedules': (_) => const SchedulesPage(),
@@ -76,7 +75,7 @@ class MyApp extends StatelessWidget {
         },
         home: Consumer<AuthService>(
           builder: (ctx, a, _) {
-            if (a.isLoggedIn) return MainShell();
+            if (a.isLoggedIn) return const MainShell();
             return const LoginPage();
           },
         ),

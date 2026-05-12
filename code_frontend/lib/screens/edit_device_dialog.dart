@@ -33,18 +33,11 @@ class _EditDeviceDialogState extends State<EditDeviceDialog> {
     setState(() => _busy = true);
     final auth = Provider.of<AuthService>(context, listen: false);
     try {
-      final payload = {
-        'name': _name,
-        'location': _location,
-        'externalId': _externalId.isEmpty ? null : _externalId,
-      };
+      final payload = {'name': _name, 'location': _location, 'externalId': _externalId.isEmpty ? null : _externalId};
       await Api.updateDevice(auth.accessToken ?? '', widget.device.id, payload);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Update device failed: $e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Update failed: $e')));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -53,49 +46,45 @@ class _EditDeviceDialogState extends State<EditDeviceDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Edit device'),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      title: const Text('Edit Device Details', style: TextStyle(fontWeight: FontWeight.bold)),
       content: SingleChildScrollView(
         child: Form(
           key: _formKey,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextFormField(
-                initialValue: _name,
-                decoration: const InputDecoration(labelText: 'Name'),
-                onSaved: (v) => _name = v ?? '',
-                validator: (v) => v == null || v.isEmpty ? 'Required' : null,
-              ),
-              TextFormField(
-                initialValue: _location,
-                decoration: const InputDecoration(labelText: 'Location'),
-                onSaved: (v) => _location = v ?? '',
-              ),
-              TextFormField(
-                initialValue: _externalId,
-                decoration: const InputDecoration(labelText: 'External ID'),
-                onSaved: (v) => _externalId = v ?? '',
-              ),
+              _buildField(label: 'Name', initialValue: _name, icon: Icons.label_outline, onSave: (v) => _name = v ?? '', required: true),
+              const SizedBox(height: 15),
+              _buildField(label: 'Location', initialValue: _location, icon: Icons.location_on_outlined, onSave: (v) => _location = v ?? ''),
+              const SizedBox(height: 15),
+              _buildField(label: 'Hardware ID', initialValue: _externalId, icon: Icons.fingerprint_outlined, onSave: (v) => _externalId = v ?? ''),
             ],
           ),
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
-        ),
+        TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
         ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2E7D32), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
           onPressed: _busy ? null : _submit,
-          child: _busy
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Save'),
+          child: _busy ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('UPDATE'),
         ),
       ],
+    );
+  }
+
+  Widget _buildField({required String label, required String initialValue, required IconData icon, required Function(String?) onSave, bool required = false}) {
+    return TextFormField(
+      initialValue: initialValue,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, size: 20),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      ),
+      onSaved: onSave,
+      validator: required ? (v) => (v == null || v.isEmpty) ? 'Required' : null : null,
     );
   }
 }
