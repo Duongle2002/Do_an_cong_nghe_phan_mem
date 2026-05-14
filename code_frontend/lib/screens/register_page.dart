@@ -51,11 +51,14 @@ class _RegisterPageState extends State<RegisterPage> with SingleTickerProviderSt
     });
     try {
       await Api.register(_nameCtl.text.trim(), _emailCtl.text.trim(), _passCtl.text.trim());
+      if (!mounted) return;
       final auth = Provider.of<AuthService>(context, listen: false);
       final ok = await auth.login(_emailCtl.text.trim(), _passCtl.text.trim());
+      if (!mounted) return;
       if (ok) Navigator.of(context).pop();
     } catch (e) {
-      setState(() => _error = 'Registration failed. Email might already exist.');
+      final message = e.toString().replaceFirst('Exception: ', '');
+      setState(() => _error = message.isNotEmpty ? message : 'Registration failed. Email might already exist.');
     } finally {
       setState(() => _loading = false);
     }

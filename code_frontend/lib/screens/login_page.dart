@@ -211,7 +211,8 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
       final ok = await auth.login(_emailCtl.text.trim(), _passCtl.text.trim());
       if (!ok) setState(() => _error = 'Invalid credentials');
     } catch (e) {
-      setState(() => _error = 'Login failed. Please check your connection.');
+      final message = e.toString().replaceFirst('Exception: ', '');
+      setState(() => _error = message.isNotEmpty ? message : 'Login failed. Please check your connection.');
     } finally {
       setState(() => _loading = false);
     }
