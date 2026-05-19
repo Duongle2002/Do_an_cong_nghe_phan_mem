@@ -1,6 +1,7 @@
 const { body, query } = require('express-validator');
 const Command = require('../models/Command');
 const Device = require('../models/Device');
+const checkDeviceAccess = require('../utils/checkDeviceAccess');
 const { mqtt } = require('../integrations/mqtt');
 
 const createValidators = [
@@ -11,13 +12,16 @@ const createValidators = [
 
 async function create(req, res) {
   const { deviceId, target, action } = req.body;
-  const device = await Device.findById(deviceId);
-  if (!device) return res.status(404).json({ message: 'Device not found' });
-  if (req.user.role !== 'Admin' && device.ownerId.toString() !== req.user.id) {
-    return res.status(403).json({ message: 'Forbidden' });
+  let device;
+  try {
+    device = await checkDeviceAccess(deviceId, req.user);
+  } catch (err) {
+    if (err.code === 'NOT_FOUND') return res.status(404).json({ message: 'Device not found' });
+    if (err.code === 'FORBIDDEN') return res.status(403).json({ message: 'Forbidden' });
+    throw err;
   }
   const cmd = await Command.create({ deviceId, userId: req.user.id, target, action, status: 'pending' });
-  // Publish to MQTT for ESP32 (sensors/<externalId>/control/<target>)
+  // Publish to MQTT for ESP32-S3 controller (controllers/<externalId>/control/<target>)
   try {
     const idForTopic = device.externalId || deviceId;
     mqtt.publishControl(idForTopic, target, action, cmd);
@@ -32,10 +36,12 @@ const listValidators = [
 
 async function list(req, res) {
   const { deviceId, status } = req.query;
-  const device = await Device.findById(deviceId);
-  if (!device) return res.status(404).json({ message: 'Device not found' });
-  if (req.user.role !== 'Admin' && device.ownerId.toString() !== req.user.id) {
-    return res.status(403).json({ message: 'Forbidden' });
+  try {
+    await checkDeviceAccess(deviceId, req.user);
+  } catch (err) {
+    if (err.code === 'NOT_FOUND') return res.status(404).json({ message: 'Device not found' });
+    if (err.code === 'FORBIDDEN') return res.status(403).json({ message: 'Forbidden' });
+    throw err;
   }
   const q = { deviceId };
   if (status) q.status = status;
@@ -64,10 +70,12 @@ async function updateStatus(req, res) {
   const cmd = await Command.findById(req.params.id);
   if (!cmd) return res.status(404).json({ message: 'Command not found' });
   // Only owner or admin can modify
-  const device = await Device.findById(cmd.deviceId);
-  if (!device) return res.status(404).json({ message: 'Device not found' });
-  if (req.user.role !== 'Admin' && device.ownerId.toString() !== req.user.id) {
-    return res.status(403).json({ message: 'Forbidden' });
+  try {
+    await checkDeviceAccess(cmd.deviceId, req.user);
+  } catch (err) {
+    if (err.code === 'NOT_FOUND') return res.status(404).json({ message: 'Device not found' });
+    if (err.code === 'FORBIDDEN') return res.status(403).json({ message: 'Forbidden' });
+    throw err;
   }
   const { status, executedAt } = req.body;
   cmd.status = status;

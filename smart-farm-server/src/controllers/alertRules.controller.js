@@ -1,6 +1,7 @@
 const { body, query, param } = require('express-validator');
 const AlertRule = require('../models/AlertRule');
 const Device = require('../models/Device');
+const checkDeviceAccess = require('../utils/checkDeviceAccess');
 
 const createValidators = [
   body('deviceId').isString().notEmpty(),
@@ -16,10 +17,12 @@ async function create(req, res) {
   const { deviceId, metric, minThreshold, maxThreshold, enabled, notificationType, cooldownMinutes } = req.body;
 
   // Verify device exists and belongs to user
-  const device = await Device.findById(deviceId);
-  if (!device) return res.status(404).json({ message: 'Device not found' });
-  if (req.user.role !== 'Admin' && device.ownerId.toString() !== req.user.id) {
-    return res.status(403).json({ message: 'Forbidden' });
+  try {
+    await checkDeviceAccess(deviceId, req.user);
+  } catch (err) {
+    if (err.code === 'NOT_FOUND') return res.status(404).json({ message: 'Device not found' });
+    if (err.code === 'FORBIDDEN') return res.status(403).json({ message: 'Forbidden' });
+    throw err;
   }
 
   // Check if rule already exists for this device+metric
@@ -55,9 +58,12 @@ async function update(req, res) {
   const rule = await AlertRule.findById(req.params.id);
   if (!rule) return res.status(404).json({ message: 'Alert rule not found' });
 
-  const device = await Device.findById(rule.deviceId);
-  if (req.user.role !== 'Admin' && device.ownerId.toString() !== req.user.id) {
-    return res.status(403).json({ message: 'Forbidden' });
+  try {
+    await checkDeviceAccess(rule.deviceId, req.user);
+  } catch (err) {
+    if (err.code === 'NOT_FOUND') return res.status(404).json({ message: 'Device not found' });
+    if (err.code === 'FORBIDDEN') return res.status(403).json({ message: 'Forbidden' });
+    throw err;
   }
 
   Object.assign(rule, req.body);
@@ -84,9 +90,12 @@ async function deleteRule(req, res) {
   const rule = await AlertRule.findById(req.params.id);
   if (!rule) return res.status(404).json({ message: 'Alert rule not found' });
 
-  const device = await Device.findById(rule.deviceId);
-  if (req.user.role !== 'Admin' && device.ownerId.toString() !== req.user.id) {
-    return res.status(403).json({ message: 'Forbidden' });
+  try {
+    await checkDeviceAccess(rule.deviceId, req.user);
+  } catch (err) {
+    if (err.code === 'NOT_FOUND') return res.status(404).json({ message: 'Device not found' });
+    if (err.code === 'FORBIDDEN') return res.status(403).json({ message: 'Forbidden' });
+    throw err;
   }
 
   await AlertRule.findByIdAndDelete(req.params.id);

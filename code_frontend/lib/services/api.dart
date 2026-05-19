@@ -46,6 +46,17 @@ class Api {
     }
   }
 
+  static dynamic _handleResponse(http.Response resp, String actionName) {
+    final body = _decodeBody(resp);
+    if (resp.statusCode >= 400) {
+      final msg = body is Map && body['message'] != null
+          ? body['message']
+          : resp.reasonPhrase;
+      throw Exception('$actionName: $msg');
+    }
+    return body;
+  }
+
   static Future<Map<String, dynamic>> login(
     String email,
     String password,
@@ -54,13 +65,7 @@ class Api {
       'email': email,
       'password': password,
     });
-    final body = _decodeBody(resp);
-    if (resp.statusCode >= 400) {
-      final msg = body is Map && body['message'] != null
-          ? body['message']
-          : resp.reasonPhrase;
-      throw Exception('Login failed: $msg');
-    }
+    final body = _handleResponse(resp, 'Login failed');
     if (body is Map<String, dynamic>) return body;
     throw Exception('Unexpected login response');
   }
@@ -75,26 +80,14 @@ class Api {
       'email': email,
       'password': password,
     });
-    final body = _decodeBody(resp);
-    if (resp.statusCode >= 400) {
-      final msg = body is Map && body['message'] != null
-          ? body['message']
-          : resp.reasonPhrase;
-      throw Exception('Register failed: $msg');
-    }
+    final body = _handleResponse(resp, 'Register failed');
     if (body is Map<String, dynamic>) return body;
     throw Exception('Unexpected register response');
   }
 
   static Future<List<dynamic>> getDevices(String token) async {
     final resp = await get('/api/devices', token: token);
-    final body = _decodeBody(resp);
-    if (resp.statusCode >= 400) {
-      final msg = body is Map && body['message'] != null
-          ? body['message']
-          : resp.reasonPhrase;
-      throw Exception('Error fetching devices: $msg');
-    }
+    final body = _handleResponse(resp, 'Error fetching devices');
     // some endpoints might wrap the list in an object: { devices: [...] }
     if (body is List) return body as List<dynamic>;
     if (body is Map && body['devices'] is List)
@@ -104,7 +97,9 @@ class Api {
 
   static Future<Map<String, dynamic>> getDevice(String token, String id) async {
     final resp = await get('/api/devices/$id', token: token);
-    return jsonDecode(resp.body) as Map<String, dynamic>;
+    final body = _handleResponse(resp, 'Error fetching device');
+    if (body is Map<String, dynamic>) return body;
+    throw Exception('Unexpected device response');
   }
 
   static Future<List<dynamic>> getSensorData(
@@ -118,13 +113,7 @@ class Api {
     if (from != null) q['from'] = from;
     if (to != null) q['to'] = to;
     final resp = await get('/api/sensors', token: token, query: q);
-    final body = _decodeBody(resp);
-    if (resp.statusCode >= 400) {
-      final msg = body is Map && body['message'] != null
-          ? body['message']
-          : resp.reasonPhrase;
-      throw Exception('Error fetching sensor data: $msg');
-    }
+    final body = _handleResponse(resp, 'Error fetching sensor data');
     if (body is List) return body as List<dynamic>;
     if (body is Map && body['items'] is List)
       return body['items'] as List<dynamic>;
@@ -137,13 +126,7 @@ class Api {
     Map<String, dynamic> body,
   ) async {
     final resp = await post('/api/commands', body, token: token);
-    final b = _decodeBody(resp);
-    if (resp.statusCode >= 400) {
-      final msg = b is Map && b['message'] != null
-          ? b['message']
-          : resp.reasonPhrase;
-      throw Exception('Error creating command: $msg');
-    }
+    final b = _handleResponse(resp, 'Error creating command');
     if (b is Map<String, dynamic>) return b;
     throw Exception('Unexpected command response');
   }
@@ -156,13 +139,7 @@ class Api {
     final q = {'deviceId': deviceId};
     if (status != null) q['status'] = status;
     final resp = await get('/api/commands', token: token, query: q);
-    final b = _decodeBody(resp);
-    if (resp.statusCode >= 400) {
-      final msg = b is Map && b['message'] != null
-          ? b['message']
-          : resp.reasonPhrase;
-      throw Exception('Error listing commands: $msg');
-    }
+    final b = _handleResponse(resp, 'Error listing commands');
     if (b is List) return b;
     return [];
   }
@@ -181,13 +158,7 @@ class Api {
       token: token,
       query: q.isEmpty ? null : q,
     );
-    final b = _decodeBody(resp);
-    if (resp.statusCode >= 400) {
-      final msg = b is Map && b['message'] != null
-          ? b['message']
-          : resp.reasonPhrase;
-      throw Exception('Error fetching alerts: $msg');
-    }
+    final b = _handleResponse(resp, 'Error fetching alerts');
     if (b is List) return b;
     return [];
   }
@@ -200,13 +171,7 @@ class Api {
       Uri.parse('$baseUrl/api/alerts/$alertId/read'),
       headers: _authHeaders(token),
     );
-    final b = _decodeBody(resp);
-    if (resp.statusCode >= 400) {
-      final msg = b is Map && b['message'] != null
-          ? b['message']
-          : resp.reasonPhrase;
-      throw Exception('Error marking alert as read: $msg');
-    }
+    final b = _handleResponse(resp, 'Error marking alert as read');
     if (b is Map<String, dynamic>) return b;
     throw Exception('Unexpected mark alert response');
   }
@@ -217,13 +182,7 @@ class Api {
     Map<String, dynamic> body,
   ) async {
     final resp = await post('/api/sensors/ingest', body, token: token);
-    final b = _decodeBody(resp);
-    if (resp.statusCode >= 400) {
-      final msg = b is Map && b['message'] != null
-          ? b['message']
-          : resp.reasonPhrase;
-      throw Exception('Error ingesting sensor data: $msg');
-    }
+    final b = _handleResponse(resp, 'Error ingesting sensor data');
     if (b is Map<String, dynamic>) return b;
     throw Exception('Unexpected ingest response');
   }
@@ -240,13 +199,7 @@ class Api {
       token: token,
       query: q.isEmpty ? null : q,
     );
-    final b = _decodeBody(resp);
-    if (resp.statusCode >= 400) {
-      final msg = b is Map && b['message'] != null
-          ? b['message']
-          : resp.reasonPhrase;
-      throw Exception('Error fetching schedules: $msg');
-    }
+    final b = _handleResponse(resp, 'Error fetching schedules');
     if (b is List) return b;
     return [];
   }
@@ -256,13 +209,7 @@ class Api {
     Map<String, dynamic> body,
   ) async {
     final resp = await post('/api/schedules', body, token: token);
-    final b = _decodeBody(resp);
-    if (resp.statusCode >= 400) {
-      final msg = b is Map && b['message'] != null
-          ? b['message']
-          : resp.reasonPhrase;
-      throw Exception('Error creating schedule: $msg');
-    }
+    final b = _handleResponse(resp, 'Error creating schedule');
     if (b is Map<String, dynamic>) return b;
     throw Exception('Unexpected create schedule response');
   }
@@ -272,13 +219,7 @@ class Api {
     Map<String, dynamic> body,
   ) async {
     final resp = await post('/api/devices', body, token: token);
-    final b = _decodeBody(resp);
-    if (resp.statusCode >= 400) {
-      final msg = b is Map && b['message'] != null
-          ? b['message']
-          : resp.reasonPhrase;
-      throw Exception('Error creating device: $msg');
-    }
+    final b = _handleResponse(resp, 'Error creating device');
     if (b is Map<String, dynamic>) return b;
     throw Exception('Unexpected create device response');
   }
@@ -294,13 +235,7 @@ class Api {
       headers: _authHeaders(token),
       body: jsonEncode(body),
     );
-    final b = _decodeBody(resp);
-    if (resp.statusCode >= 400) {
-      final msg = b is Map && b['message'] != null
-          ? b['message']
-          : resp.reasonPhrase;
-      throw Exception('Error updating thresholds: $msg');
-    }
+    final b = _handleResponse(resp, 'Error updating thresholds');
     if (b is Map<String, dynamic>) return b;
     throw Exception('Unexpected update thresholds response');
   }
@@ -315,13 +250,7 @@ class Api {
       headers: _authHeaders(token),
       body: jsonEncode(body),
     );
-    final b = _decodeBody(resp);
-    if (resp.statusCode >= 400) {
-      final msg = b is Map && b['message'] != null
-          ? b['message']
-          : resp.reasonPhrase;
-      throw Exception('Error updating schedule: $msg');
-    }
+    final b = _handleResponse(resp, 'Error updating schedule');
     if (b is Map<String, dynamic>) return b;
     throw Exception('Unexpected update schedule response');
   }
@@ -337,13 +266,7 @@ class Api {
       headers: _authHeaders(token),
       body: jsonEncode(body),
     );
-    final b = _decodeBody(resp);
-    if (resp.statusCode >= 400) {
-      final msg = b is Map && b['message'] != null
-          ? b['message']
-          : resp.reasonPhrase;
-      throw Exception('Error updating device: $msg');
-    }
+    final b = _handleResponse(resp, 'Error updating device');
     if (b is Map<String, dynamic>) return b;
     throw Exception('Unexpected update device response');
   }
@@ -354,11 +277,7 @@ class Api {
       headers: _authHeaders(token),
     );
     if (resp.statusCode >= 400) {
-      final b = _decodeBody(resp);
-      final msg = b is Map && b['message'] != null
-          ? b['message']
-          : resp.reasonPhrase;
-      throw Exception('Error deleting device: $msg');
+      final b = _handleResponse(resp, 'Error deleting device');
     }
     return;
   }
@@ -369,11 +288,7 @@ class Api {
       headers: _authHeaders(token),
     );
     if (resp.statusCode >= 400) {
-      final b = _decodeBody(resp);
-      final msg = b is Map && b['message'] != null
-          ? b['message']
-          : resp.reasonPhrase;
-      throw Exception('Error deleting schedule: $msg');
+      final b = _handleResponse(resp, 'Error deleting schedule');
     }
     return;
   }
@@ -392,13 +307,7 @@ class Api {
       token: token,
       query: q.isEmpty ? null : q,
     );
-    final b = _decodeBody(resp);
-    if (resp.statusCode >= 400) {
-      final msg = b is Map && b['message'] != null
-          ? b['message']
-          : resp.reasonPhrase;
-      throw Exception('Error fetching alert rules: $msg');
-    }
+    final b = _handleResponse(resp, 'Error fetching alert rules');
     if (b is List) return b;
     return [];
   }
@@ -408,13 +317,7 @@ class Api {
     Map<String, dynamic> body,
   ) async {
     final resp = await post('/api/alert-rules', body, token: token);
-    final b = _decodeBody(resp);
-    if (resp.statusCode >= 400) {
-      final msg = b is Map && b['message'] != null
-          ? b['message']
-          : resp.reasonPhrase;
-      throw Exception('Error creating alert rule: $msg');
-    }
+    final b = _handleResponse(resp, 'Error creating alert rule');
     if (b is Map<String, dynamic>) return b;
     throw Exception('Unexpected create alert rule response');
   }
@@ -429,13 +332,7 @@ class Api {
       headers: _authHeaders(token),
       body: jsonEncode(body),
     );
-    final b = _decodeBody(resp);
-    if (resp.statusCode >= 400) {
-      final msg = b is Map && b['message'] != null
-          ? b['message']
-          : resp.reasonPhrase;
-      throw Exception('Error updating alert rule: $msg');
-    }
+    final b = _handleResponse(resp, 'Error updating alert rule');
     if (b is Map<String, dynamic>) return b;
     throw Exception('Unexpected update alert rule response');
   }
@@ -446,11 +343,7 @@ class Api {
       headers: _authHeaders(token),
     );
     if (resp.statusCode >= 400) {
-      final b = _decodeBody(resp);
-      final msg = b is Map && b['message'] != null
-          ? b['message']
-          : resp.reasonPhrase;
-      throw Exception('Error deleting alert rule: $msg');
+      final b = _handleResponse(resp, 'Error deleting alert rule');
     }
     return;
   }

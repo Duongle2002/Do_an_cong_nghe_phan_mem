@@ -30,7 +30,15 @@ async function register(req, res) {
 }
 
 const loginValidators = [
-  body('email').isEmail(),
+  body('email')
+    .isString()
+    .notEmpty()
+    .custom((value) => {
+      const relaxed = process.env.RELAXED_EMAIL === 'true' || process.env.NODE_ENV !== 'production';
+      if (validator.isEmail(value)) return true;
+      if (relaxed && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value)) return true;
+      throw new Error('Invalid value');
+    }),
   body('password').isString().notEmpty(),
 ];
 

@@ -62,7 +62,7 @@ export default function RegisterPage() {
           <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
         </label>
         {error && <div style={{ color: 'red' }}>{error}</div>}
-        <button type="submit" disabled={busy}>{busy ? 'Please wait...' : 'Register'}</button>
+        <button className="btn " type="submit" disabled={busy}>{busy ? 'Please wait...' : 'Register'}</button>
         <div>
           Already have an account? <Link to="/login">Login</Link>
         </div>

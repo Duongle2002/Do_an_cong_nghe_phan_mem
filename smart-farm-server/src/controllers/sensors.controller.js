@@ -1,6 +1,7 @@
 const { query, body } = require('express-validator');
 const SensorData = require('../models/SensorData');
 const Device = require('../models/Device');
+const checkDeviceAccess = require('../utils/checkDeviceAccess');
 const { checkAlertRules } = require('../services/alertService');
 
 const ingestValidators = [
@@ -15,10 +16,13 @@ const ingestValidators = [
 
 async function ingest(req, res) {
   const { deviceId, temperature, humidity, soilMoisture, pH, lux, timestamp } = req.body;
-  const device = await Device.findById(deviceId);
-  if (!device) return res.status(404).json({ message: 'Device not found' });
-  if (req.user && req.user.role !== 'Admin' && device.ownerId.toString() !== req.user.id) {
-    return res.status(403).json({ message: 'Forbidden' });
+  let device;
+  try {
+    device = await checkDeviceAccess(deviceId, req.user);
+  } catch (err) {
+    if (err.code === 'NOT_FOUND') return res.status(404).json({ message: 'Device not found' });
+    if (err.code === 'FORBIDDEN') return res.status(403).json({ message: 'Forbidden' });
+    throw err;
   }
   const data = await SensorData.create({ deviceId, temperature, humidity, soilMoisture, pH, lux, timestamp: timestamp || new Date() });
   
@@ -39,10 +43,13 @@ async function list(req, res) {
   const { deviceId, from, to } = req.query;
   const limit = parseInt(req.query.limit || '100', 10);
 
-  const device = await Device.findById(deviceId);
-  if (!device) return res.status(404).json({ message: 'Device not found' });
-  if (req.user && req.user.role !== 'Admin' && device.ownerId.toString() !== req.user.id) {
-    return res.status(403).json({ message: 'Forbidden' });
+  let device;
+  try {
+    device = await checkDeviceAccess(deviceId, req.user);
+  } catch (err) {
+    if (err.code === 'NOT_FOUND') return res.status(404).json({ message: 'Device not found' });
+    if (err.code === 'FORBIDDEN') return res.status(403).json({ message: 'Forbidden' });
+    throw err;
   }
 
   const q = { deviceId };
