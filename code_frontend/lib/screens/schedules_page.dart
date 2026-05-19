@@ -12,15 +12,27 @@ class SchedulesPage extends StatefulWidget {
   State<SchedulesPage> createState() => _SchedulesPageState();
 }
 
-class _SchedulesPageState extends State<SchedulesPage> {
+class _SchedulesPageState extends State<SchedulesPage> with SingleTickerProviderStateMixin {
   List<dynamic> _schedules = [];
   bool _loading = true;
   bool _busy = false;
 
+  late AnimationController _listController;
+
   @override
   void initState() {
     super.initState();
+    _listController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
     _load();
+  }
+
+  @override
+  void dispose() {
+    _listController.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -29,6 +41,7 @@ class _SchedulesPageState extends State<SchedulesPage> {
     try {
       final list = await Api.getSchedules(auth.accessToken ?? '');
       setState(() => _schedules = list);
+      _listController.forward(from: 0);
     } catch (e) {
       setState(() => _schedules = []);
     } finally {
@@ -40,9 +53,7 @@ class _SchedulesPageState extends State<SchedulesPage> {
     final auth = Provider.of<AuthService>(context, listen: false);
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (ctx) {
-        return ScheduleEditorDialog(existing: existing);
-      },
+      builder: (ctx) => ScheduleEditorDialog(existing: existing),
     );
     if (result != null) {
       setState(() => _busy = true);
@@ -50,17 +61,11 @@ class _SchedulesPageState extends State<SchedulesPage> {
         if (existing == null) {
           await Api.createSchedule(auth.accessToken ?? '', result);
         } else {
-          await Api.updateSchedule(
-            auth.accessToken ?? '',
-            existing['_id'],
-            result,
-          );
+          await Api.updateSchedule(auth.accessToken ?? '', existing['_id'], result);
         }
         await _load();
       } catch (e) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
       } finally {
         setState(() => _busy = false);
       }
@@ -75,14 +80,8 @@ class _SchedulesPageState extends State<SchedulesPage> {
         title: const Text('Delete schedule?'),
         content: const Text('Are you sure you want to delete this schedule?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete'),
-          ),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Delete')),
         ],
       ),
     );
@@ -92,9 +91,7 @@ class _SchedulesPageState extends State<SchedulesPage> {
       await Api.deleteSchedule(auth.accessToken ?? '', id);
       await _load();
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Delete failed: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Delete failed: $e')));
     } finally {
       setState(() => _busy = false);
     }
@@ -103,78 +100,161 @@ class _SchedulesPageState extends State<SchedulesPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF4F7F2),
+      appBar: AppBar(
+        title: const Text('Operation Schedule', style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _schedules.isEmpty
-          ? const Center(child: Text('No schedules'))
+          ? _buildEmptyState()
           : Stack(
               children: [
-                ListView.separated(
+                ListView.builder(
                   itemCount: _schedules.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                   itemBuilder: (ctx, i) {
                     final s = _schedules[i] as Map<String, dynamic>;
-                    final when = s['time'] != null
-                        ? DateTime.parse(s['time'])
-                        : null;
-                    final whenStr = when != null
-                        ? DateFormat.yMd().add_jm().format(when)
-                        : '';
-                    return ListTile(
-                      title: Text(
-                        '${s['target'] ?? ''} → ${s['action'] ?? ''}',
-                      ),
-                      subtitle: Text(
-                        '${s['name'] ?? ''}${s['name'] != null ? ' · ' : ''}${whenStr}',
-                      ),
-                      leading: Switch(
-                        value: s['active'] == true,
-                        onChanged: (v) async {
-                          final auth = Provider.of<AuthService>(
-                            context,
-                            listen: false,
-                          );
-                          final body = Map<String, dynamic>.from(s);
-                          body['active'] = v;
-                          try {
-                            await Api.updateSchedule(
-                              auth.accessToken ?? '',
-                              s['_id'],
-                              body,
-                            );
-                            await _load();
-                          } catch (e) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Update failed: $e')),
-                            );
-                          }
-                        },
-                      ),
-                      trailing: Wrap(
-                        spacing: 8,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.edit),
-                            onPressed: () => _showEditor(existing: s),
+                    return AnimatedBuilder(
+                      animation: _listController,
+                      builder: (context, child) {
+                        final animation = CurvedAnimation(
+                          parent: _listController,
+                          curve: Interval((i / _schedules.length) * 0.5, 1.0, curve: Curves.easeOut),
+                        );
+                        return Opacity(
+                          opacity: animation.value,
+                          child: Transform.translate(
+                            offset: Offset(0, 30 * (1 - animation.value)),
+                            child: child,
                           ),
-                          IconButton(
-                            icon: const Icon(Icons.delete),
-                            onPressed: () => _delete(s['_id']),
-                          ),
-                        ],
-                      ),
+                        );
+                      },
+                      child: _buildScheduleCard(s),
                     );
                   },
                 ),
-                if (_busy)
-                  const Positioned.fill(
-                    child: ColoredBox(color: Color.fromARGB(60, 0, 0, 0)),
-                  ),
+                if (_busy) const Positioned.fill(child: ColoredBox(color: Colors.black12)),
               ],
             ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showEditor(),
-        child: const Icon(Icons.add),
+        label: const Text('Add Task'),
+        icon: const Icon(Icons.add_alarm),
+        backgroundColor: const Color(0xFF2E7D32),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.calendar_today_outlined, size: 80, color: Colors.grey.shade300),
+          const SizedBox(height: 16),
+          const Text('No operations scheduled', style: TextStyle(color: Colors.grey, fontSize: 16)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScheduleCard(Map<String, dynamic> s) {
+    final when = s['time'] != null ? DateTime.parse(s['time']).toLocal() : null;
+    final whenStr = when != null ? DateFormat('HH:mm · MMM d').format(when) : 'No time';
+    final isActive = s['active'] == true;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: isActive ? Colors.green.withOpacity(0.2) : Colors.transparent, width: 2),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: (isActive ? Colors.green : Colors.grey).withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                s['target'] == 'pump' ? Icons.water_drop : s['target'] == 'fan' ? Icons.air : Icons.settings,
+                color: isActive ? Colors.green : Colors.grey,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${s['target']?.toUpperCase() ?? 'TASK'} → ${s['action'] ?? ''}',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: isActive ? Colors.black87 : Colors.grey),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.access_time, size: 12, color: Colors.grey.shade600),
+                      const SizedBox(width: 4),
+                      Text(whenStr, style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                      if (s['repeat'] != null) ...[
+                        const SizedBox(width: 10),
+                        Icon(Icons.repeat, size: 12, color: Colors.grey.shade600),
+                        const SizedBox(width: 4),
+                        Text(s['repeat'], style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                      ]
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Switch.adaptive(
+              value: isActive,
+              activeColor: Colors.green,
+              onChanged: (v) async {
+                final auth = Provider.of<AuthService>(context, listen: false);
+                final body = Map<String, dynamic>.from(s);
+                body['active'] = v;
+                try {
+                  await Api.updateSchedule(auth.accessToken ?? '', s['_id'], body);
+                  _load();
+                } catch (_) {}
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.more_vert, color: Colors.grey, size: 20),
+              onPressed: () => _showScheduleOptions(s),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showScheduleOptions(Map<String, dynamic> s) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
+      builder: (ctx) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 10),
+          Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 10),
+          ListTile(leading: const Icon(Icons.edit), title: const Text('Edit Task'), onTap: () { Navigator.pop(ctx); _showEditor(existing: s); }),
+          ListTile(leading: const Icon(Icons.delete, color: Colors.red), title: const Text('Delete Task', style: TextStyle(color: Colors.red)), onTap: () { Navigator.pop(ctx); _delete(s['_id']); }),
+          const SizedBox(height: 20),
+        ],
       ),
     );
   }

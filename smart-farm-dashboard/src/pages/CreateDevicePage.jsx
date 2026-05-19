@@ -37,7 +37,7 @@ export default function CreateDevicePage() {
     <div style={{ maxWidth: 720, margin: '24px auto' }}>
       <div className="card">
         <div className="card-header">
-          <h3 style={{ margin:0 }}>Tạo thiết bị</h3>
+          <h3 style={{ margin: 0 }}>Tạo thiết bị</h3>
           <span className="small muted">Nhập External ID trùng với ESP</span>
         </div>
         <div className="card-body">

@@ -9,102 +9,197 @@ class LoginPage extends StatefulWidget {
   State<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _emailCtl = TextEditingController();
   final _passCtl = TextEditingController();
   bool _loading = false;
   String? _error;
 
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: const Interval(0.4, 1.0, curve: Curves.easeIn)),
+    );
+
+    _slideAnimation = Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
+      CurvedAnimation(parent: _animationController, curve: const Interval(0.4, 1.0, curve: Curves.easeOutCubic)),
+    );
+
+    _animationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    _emailCtl.dispose();
+    _passCtl.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      backgroundColor: theme.colorScheme.background,
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  'Login',
-                  style: TextStyle(
-                    fontSize: 36,
-                    fontWeight: FontWeight.bold,
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
-                const SizedBox(height: 48),
-                TextFormField(
-                  controller: _emailCtl,
-                  decoration: InputDecoration(
-                    labelText: 'Email',
-                    prefixIcon: Icon(
-                      Icons.email,
-                      color: theme.colorScheme.primary,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  validator: (v) =>
-                      (v == null || v.isEmpty) ? 'Enter email' : null,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _passCtl,
-                  decoration: InputDecoration(
-                    labelText: 'Password',
-                    prefixIcon: Icon(
-                      Icons.lock,
-                      color: theme.colorScheme.primary,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  obscureText: true,
-                  validator: (v) =>
-                      (v == null || v.isEmpty) ? 'Enter password' : null,
-                ),
-                const SizedBox(height: 24),
-                if (_error != null)
-                  Text(
-                    _error!,
-                    style: TextStyle(color: theme.colorScheme.error),
-                  ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _loading ? null : () => _submit(context),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      backgroundColor: theme.colorScheme.primary,
-                      foregroundColor: theme.colorScheme.onPrimary,
-                    ),
-                    child: _loading
-                        ? CircularProgressIndicator(
-                            color: theme.colorScheme.onPrimary,
-                          )
-                        : Text('Login', style: TextStyle(fontSize: 18)),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextButton(
-                  onPressed: () => Navigator.of(context).pushNamed('/register'),
-                  child: Text(
-                    'Create an account',
-                    style: TextStyle(color: theme.colorScheme.secondary),
-                  ),
-                ),
-              ],
+      body: Stack(
+        children: [
+          // Background Image with Overlay
+          Positioned.fill(
+            child: Image.asset(
+              'assets/smart_farm_bg.png',
+              fit: BoxFit.cover,
             ),
           ),
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withOpacity(0.3),
+                    Colors.black.withOpacity(0.8),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // Login Form
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 30),
+                child: FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: SlideTransition(
+                    position: _slideAnimation,
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.eco, size: 80, color: Color(0xFF81C784)),
+                          const SizedBox(height: 10),
+                          const Text(
+                            'SMART FARM',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 28,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 4,
+                            ),
+                          ),
+                          const Text(
+                            'Digital Agriculture Control',
+                            style: TextStyle(color: Colors.white70, fontSize: 14),
+                          ),
+                          const SizedBox(height: 50),
+
+                          // Email Field
+                          _buildTextField(
+                            controller: _emailCtl,
+                            label: 'Email',
+                            icon: Icons.email_outlined,
+                            keyboardType: TextInputType.emailAddress,
+                          ),
+                          const SizedBox(height: 20),
+
+                          // Password Field
+                          _buildTextField(
+                            controller: _passCtl,
+                            label: 'Password',
+                            icon: Icons.lock_outline,
+                            obscureText: true,
+                          ),
+                          const SizedBox(height: 30),
+
+                          if (_error != null)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 15),
+                              child: Text(
+                                _error!,
+                                style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+
+                          // Login Button
+                          SizedBox(
+                            width: double.infinity,
+                            height: 55,
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF2E7D32),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                                elevation: 5,
+                              ),
+                              onPressed: _loading ? null : () => _submit(context),
+                              child: _loading
+                                  ? const CircularProgressIndicator(color: Colors.white)
+                                  : const Text(
+                                      'LOGIN',
+                                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                    ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 20),
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pushNamed('/register'),
+                            child: const Text(
+                              'Don\'t have an account? Create one',
+                              style: TextStyle(color: Colors.white70),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    bool obscureText = false,
+    TextInputType? keyboardType,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: TextFormField(
+        controller: controller,
+        obscureText: obscureText,
+        keyboardType: keyboardType,
+        style: const TextStyle(color: Colors.white),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: const TextStyle(color: Colors.white70),
+          prefixIcon: Icon(icon, color: Colors.white70),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
         ),
+        validator: (v) => (v == null || v.isEmpty) ? 'Enter $label' : null,
       ),
     );
   }
@@ -115,11 +210,13 @@ class _LoginPageState extends State<LoginPage> {
     final auth = Provider.of<AuthService>(context, listen: false);
     try {
       final ok = await auth.login(_emailCtl.text.trim(), _passCtl.text.trim());
-      if (!ok) setState(() => _error = 'Login failed');
+      if (!ok) setState(() => _error = 'Invalid credentials');
     } catch (e) {
-      setState(() => _error = e.toString());
+      final message = e.toString().replaceFirst('Exception: ', '');
+      setState(() => _error = message.isNotEmpty ? message : 'Login failed. Please check your connection.');
     } finally {
       setState(() => _loading = false);
     }
   }
 }
+

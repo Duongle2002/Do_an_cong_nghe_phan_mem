@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'dart:async';
 
@@ -9,8 +10,14 @@ class Api {
   static String baseUrl = (() {
     final fromEnv = const String.fromEnvironment('API_BASE', defaultValue: '');
     if (fromEnv.isNotEmpty) return fromEnv;
+    if (!kIsWeb) {
+      // Only available on non-web targets.
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        return 'http://10.0.2.2:4000';
+      }
+    }
 
-    return 'https://server.duongle.io.vn';
+    return 'https://api.duongle.io.vn';
   })();
 
   /// Change the base URL at runtime (useful for in-app settings)

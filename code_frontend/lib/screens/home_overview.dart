@@ -15,28 +15,34 @@ class HomeOverviewPage extends StatefulWidget {
   State<HomeOverviewPage> createState() => _HomeOverviewPageState();
 }
 
-class _HomeOverviewPageState extends State<HomeOverviewPage> {
+class _HomeOverviewPageState extends State<HomeOverviewPage> with SingleTickerProviderStateMixin {
   bool _loading = true;
   List<Device> _devices = [];
   final Map<String, SensorData?> _latest = {}; // deviceId -> latest reading
-  final Map<String, List<SensorData>> _history =
-      {}; // recent readings per device
+  final Map<String, List<SensorData>> _history = {}; // recent readings per device
   String? _error;
   final Map<String, StreamSubscription> _sseSubs = {};
   int _sseActive = 0;
-  final Set<String> _shownAlertIds =
-      {}; // track shown alerts to avoid duplicates
+  final Set<String> _shownAlertIds = {}; // track shown alerts to avoid duplicates
   Timer? _alertCheckTimer;
+
+  // Animation controller for staggered list entrance
+  late AnimationController _listController;
 
   @override
   void initState() {
     super.initState();
+    _listController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
     _loadOverview();
     _startAlertPolling();
   }
 
   @override
   void dispose() {
+    _listController.dispose();
     _alertCheckTimer?.cancel();
     for (final s in _sseSubs.values) {
       try {
@@ -47,7 +53,6 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> {
   }
 
   void _startAlertPolling() {
-    // Poll for new unread alerts every 10 seconds
     _alertCheckTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       _checkForNewAlerts();
     });
@@ -64,18 +69,14 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> {
         if (!_shownAlertIds.contains(alertId)) {
           _shownAlertIds.add(alertId);
           if (mounted) {
-            // Show toast notification
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(alert['message'] ?? 'Alert triggered'),
-                backgroundColor: alert['type'] == 'error'
-                    ? Colors.red
-                    : Colors.orange,
-                duration: const Duration(seconds: 5),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                backgroundColor: alert['type'] == 'error' ? Colors.redAccent : Colors.orangeAccent,
               ),
             );
-
-            // Show local notification
             NotificationService().showLocalNotification(
               title: 'Smart Farm Alert',
               body: alert['message'] ?? 'Alert triggered',
@@ -83,9 +84,7 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> {
           }
         }
       }
-    } catch (e) {
-      // Silent fail on error
-    }
+    } catch (e) {}
   }
 
   void _subscribeSse(String? token, Device device) {
@@ -96,7 +95,6 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> {
       final sub = stream.listen(
         (evt) {
           try {
-            // Handle telemetry payloads
             if (evt.containsKey('temperature') ||
                 evt.containsKey('humidity') ||
                 evt.containsKey('soilMoisture') ||
@@ -110,7 +108,6 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> {
                 _history[device.id] = list;
               });
             }
-            // Handle status-only events
             if (evt['status'] is String) {
               final newStatus = evt['status'] as String;
               setState(() {
@@ -121,12 +118,7 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> {
                 }
               });
             }
-          } catch (e) {
-            print('sse parse error: $e');
-          }
-        },
-        onError: (e) {
-          print('SSE error for $externalId: $e');
+          } catch (e) {}
         },
         onDone: () {
           _sseSubs.remove(externalId);
@@ -139,9 +131,7 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> {
       setState(() {
         _sseActive = _sseActive + 1;
       });
-    } catch (e) {
-      print('subscribeSse error: $e');
-    }
+    } catch (e) {}
   }
 
   Future<void> _loadOverview() async {
@@ -152,22 +142,13 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> {
     final auth = Provider.of<AuthService>(context, listen: false);
     try {
       final rawDevices = await Api.getDevices(auth.accessToken ?? '');
-      _devices = rawDevices
-          .map((e) => Device.fromJson(e as Map<String, dynamic>))
-          .toList();
+      _devices = rawDevices.map((e) => Device.fromJson(e as Map<String, dynamic>)).toList();
 
-      // fetch recent sensor data (history) for each device in parallel
       final futures = _devices.map((d) async {
         try {
-          final raw = await Api.getSensorData(
-            auth.accessToken ?? '',
-            d.id,
-            limit: 20,
-          );
+          final raw = await Api.getSensorData(auth.accessToken ?? '', d.id, limit: 20);
           if (raw.isNotEmpty) {
-            final list = raw
-                .map((e) => SensorData.fromJson(e as Map<String, dynamic>))
-                .toList();
+            final list = raw.map((e) => SensorData.fromJson(e as Map<String, dynamic>)).toList();
             _history[d.id] = list;
             _latest[d.id] = list.first;
           } else {
@@ -181,10 +162,10 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> {
       }).toList();
 
       await Future.wait(futures);
-      // subscribe to SSE for realtime updates per device
       for (final d in _devices) {
         _subscribeSse(auth.accessToken, d);
       }
+      _listController.forward(from: 0);
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -195,292 +176,349 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> {
   @override
   Widget build(BuildContext context) {
     final auth = Provider.of<AuthService>(context);
+    final theme = Theme.of(context);
     final userName = auth.user != null ? auth.user!['name'] ?? 'User' : 'User';
 
     return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Welcome, $userName',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.notifications_active),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const AlertsListPage(),
-                        ),
-                      );
-                    },
-                  ),
-                ],
+      backgroundColor: const Color(0xFFF8FAF7),
+      body: CustomScrollView(
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          // Elegant Header
+          SliverAppBar(
+            expandedHeight: 180,
+            floating: false,
+            pinned: true,
+            backgroundColor: theme.colorScheme.primary,
+            flexibleSpace: FlexibleSpaceBar(
+              titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
+              title: Text(
+                'Smart Farm Overview',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  shadows: [Shadow(color: Colors.black26, blurRadius: 4)],
+                ),
               ),
-              const SizedBox(height: 12),
-              const Text(
-                'Environment Overview',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-              const SizedBox(height: 4),
-              Row(
+              background: Stack(
+                fit: StackFit.expand,
                 children: [
-                  Text(
-                    'Live stream: ',
-                    style: TextStyle(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withOpacity(0.7),
-                    ),
-                  ),
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
                     decoration: BoxDecoration(
-                      color: _sseActive > 0
-                          ? const Color(0xFF2ECC71)
-                          : Colors.grey.shade400,
-                      borderRadius: BorderRadius.circular(10),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          theme.colorScheme.primary,
+                          theme.colorScheme.primary.withBlue(100),
+                        ],
+                      ),
                     ),
-                    child: Text(
-                      _sseActive > 0
-                          ? 'connected (${_sseActive}/${_devices.length})'
-                          : 'disconnected',
-                      style: const TextStyle(color: Colors.white, fontSize: 11),
+                  ),
+                  Positioned(
+                    right: -50,
+                    top: -50,
+                    child: Icon(Icons.eco, size: 200, color: Colors.white.withOpacity(0.1)),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 60, 20, 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Welcome back,',
+                          style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 14),
+                        ),
+                        Text(
+                          userName,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 28,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: _loading
-                    ? const Center(child: CircularProgressIndicator())
-                    : _error != null
-                    ? Center(child: Text('Error: $_error'))
-                    : _devices.isEmpty
-                    ? const Center(child: Text('No devices'))
-                    : ListView.separated(
-                        itemCount: _devices.length,
-                        padding: EdgeInsets.zero,
-                        separatorBuilder: (_, __) => const SizedBox(height: 12),
-                        itemBuilder: (context, index) {
-                          final d = _devices[index];
-                          final s = _latest[d.id];
-                          final hist = _history[d.id] ?? [];
-                          return Card(
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            elevation: 1,
-                            margin: const EdgeInsets.symmetric(vertical: 6.0),
-                            child: Padding(
-                              padding: const EdgeInsets.all(12.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          d.name,
-                                          style: const TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ),
-                                      if (d.location != null &&
-                                          d.location!.isNotEmpty)
-                                        Text(
-                                          d.location!,
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey,
-                                          ),
-                                        ),
-                                      const SizedBox(width: 8),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 4,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: (d.status == 'online')
-                                              ? const Color(0xFF2ECC71)
-                                              : (d.status == 'offline')
-                                              ? const Color(0xFFE74C3C)
-                                              : Colors.grey.shade400,
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          d.status ?? 'unknown',
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 11,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 10),
-                                  GridView.count(
-                                    shrinkWrap: true,
-                                    crossAxisCount: 2,
-                                    childAspectRatio: 1.25,
-                                    padding: EdgeInsets.zero,
-                                    mainAxisSpacing: 8,
-                                    crossAxisSpacing: 8,
-                                    physics:
-                                        const NeverScrollableScrollPhysics(),
-                                    children: [
-                                      _metricTile(
-                                        d.name,
-                                        'Temp',
-                                        s?.temperature != null
-                                            ? '${s!.temperature!.toStringAsFixed(1)} °C'
-                                            : '—',
-                                      ),
-                                      _metricTile(
-                                        d.name,
-                                        'Hum',
-                                        s?.humidity != null
-                                            ? '${s!.humidity!.toStringAsFixed(1)} %'
-                                            : '—',
-                                      ),
-                                      _metricTile(
-                                        d.name,
-                                        'Lux',
-                                        s?.lux != null
-                                            ? '${s!.lux!.toStringAsFixed(0)}'
-                                            : '—',
-                                      ),
-                                      _metricTile(
-                                        d.name,
-                                        'Soil',
-                                        s?.soilMoisture != null
-                                            ? '${s!.soilMoisture!.toStringAsFixed(1)}'
-                                            : '—',
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 12),
-                                  if (hist.isNotEmpty) ...[
-                                    _buildChartSection(
-                                      context,
-                                      'Temperature',
-                                      hist.map((e) => e.temperature).toList(),
-                                      '°C',
-                                    ),
-                                    const SizedBox(height: 12),
-                                    _buildChartSection(
-                                      context,
-                                      'Humidity',
-                                      hist.map((e) => e.humidity).toList(),
-                                      '%',
-                                    ),
-                                    const SizedBox(height: 12),
-                                    _buildChartSection(
-                                      context,
-                                      'Soil Moisture',
-                                      hist.map((e) => e.soilMoisture).toList(),
-                                      '',
-                                    ),
-                                    const SizedBox(height: 12),
-                                    _buildChartSection(
-                                      context,
-                                      'Lux',
-                                      hist.map((e) => e.lux).toList(),
-                                      'lux',
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+            ),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AlertsListPage()),
+                ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(width: 8),
             ],
           ),
-        ),
-      ),
-    );
-  }
 
-  Widget _metricTile(String deviceName, String metric, String value) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      padding: const EdgeInsets.all(8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // device name top-left small
-          Text(
-            deviceName,
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
-          ),
-          const SizedBox(height: 6),
-          // metric name centered
-          Center(
-            child: Text(
-              metric,
-              style: TextStyle(
-                fontSize: 12,
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurface.withOpacity(0.85),
+          // Main Content
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildStatusRow(theme),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Connected Devices',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-          const Spacer(),
-          // value large
-          Center(
-            child: Text(
-              value,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.onSurface,
+
+          // Devices List with staggered animation
+          if (_loading)
+            const SliverFillRemaining(child: Center(child: CircularProgressIndicator()))
+          else if (_error != null)
+            SliverFillRemaining(child: Center(child: Text('Error: $_error')))
+          else if (_devices.isEmpty)
+            const SliverFillRemaining(child: Center(child: Text('No devices found')))
+          else
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final d = _devices[index];
+                    return AnimatedBuilder(
+                      animation: _listController,
+                      builder: (context, child) {
+                        final delay = (index / _devices.length);
+                        final animation = CurvedAnimation(
+                          parent: _listController,
+                          curve: Interval(delay * 0.5, 0.5 + delay * 0.5, curve: Curves.easeOutCubic),
+                        );
+                        return Opacity(
+                          opacity: animation.value,
+                          child: Transform.translate(
+                            offset: Offset(0, 30 * (1 - animation.value)),
+                            child: child,
+                          ),
+                        );
+                      },
+                      child: _buildDeviceCard(context, d),
+                    );
+                  },
+                  childCount: _devices.length,
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 6),
+
+          const SliverToBoxAdapter(child: SizedBox(height: 80)),
         ],
       ),
     );
   }
 
-  Widget _buildChartSection(
-    BuildContext context,
-    String title,
-    List<double?> values,
-    String unit,
-  ) {
+  Widget _buildStatusRow(ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Row(
+        children: [
+          _statusItem(
+            Icons.wifi_tethering,
+            'Live Feed',
+            _sseActive > 0 ? 'Connected' : 'Idle',
+            _sseActive > 0 ? Colors.green : Colors.grey,
+          ),
+          const VerticalDivider(),
+          _statusItem(
+            Icons.devices,
+            'Devices',
+            '${_devices.length} Total',
+            theme.colorScheme.primary,
+          ),
+          const VerticalDivider(),
+          _statusItem(
+            Icons.warning_amber_rounded,
+            'Alerts',
+            'All Clean',
+            Colors.orange,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statusItem(IconData icon, String label, String value, Color color) {
+    return Expanded(
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(height: 4),
+          Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+          Text(
+            value,
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDeviceCard(BuildContext context, Device d) {
+    final s = _latest[d.id];
+    final hist = _history[d.id] ?? [];
+    final theme = Theme.of(context);
+    final isOnline = d.status == 'online';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2)),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Column(
+          children: [
+            // Card Header
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: (isOnline ? Colors.green : Colors.grey).withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.sensors,
+                      color: isOnline ? Colors.green : Colors.grey,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          d.name,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
+                        if (d.location != null)
+                          Text(
+                            d.location!,
+                            style: const TextStyle(fontSize: 12, color: Colors.grey),
+                          ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: isOnline ? Colors.green.shade50 : Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      d.status?.toUpperCase() ?? 'OFFLINE',
+                      style: TextStyle(
+                        color: isOnline ? Colors.green : Colors.red,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Metrics Grid
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: GridView.count(
+                shrinkWrap: true,
+                crossAxisCount: 2,
+                childAspectRatio: 2.2,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                physics: const NeverScrollableScrollPhysics(),
+                children: [
+                  _newMetricTile(Icons.thermostat, 'Temp', s?.temperature, '°C', Colors.orange),
+                  _newMetricTile(Icons.water_drop, 'Hum', s?.humidity, '%', Colors.blue),
+                  _newMetricTile(Icons.light_mode, 'Lux', s?.lux, '', Colors.amber),
+                  _newMetricTile(Icons.grass, 'Soil', s?.soilMoisture, '', Colors.brown),
+                ],
+              ),
+            ),
+
+            // Charts Section (Expandable)
+            if (hist.isNotEmpty)
+              Theme(
+                data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                child: ExpansionTile(
+                  title: const Text('Historical Charts', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  childrenPadding: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
+                  children: [
+                    _buildAnimatedChart('Temperature', hist.map((e) => e.temperature).toList(), '°C', Colors.orange),
+                    const SizedBox(height: 12),
+                    _buildAnimatedChart('Humidity', hist.map((e) => e.humidity).toList(), '%', Colors.blue),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _newMetricTile(IconData icon, String label, double? value, String unit, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F9FA),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: color.withOpacity(0.7)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                Text(
+                  value != null ? '${value.toStringAsFixed(1)}$unit' : '--',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAnimatedChart(String title, List<double?> values, String unit, Color color) {
     final nums = values.where((v) => v != null).map((v) => v!).toList();
-    final currentValue = nums.isNotEmpty ? nums.last : null;
     final minVal = nums.isNotEmpty ? nums.reduce((a, b) => a < b ? a : b) : 0.0;
     final maxVal = nums.isNotEmpty ? nums.reduce((a, b) => a > b ? a : b) : 0.0;
-    final avgVal = nums.isNotEmpty
-        ? nums.reduce((a, b) => a + b) / nums.length
-        : 0.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -488,86 +526,79 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              title,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.9),
-              ),
-            ),
-            if (currentValue != null)
-              Text(
-                '${currentValue.toStringAsFixed(1)} $unit',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
+            Text(title, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+            if (nums.isNotEmpty)
+              Text('${nums.first.toStringAsFixed(1)}$unit', style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.bold)),
           ],
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 8),
         SizedBox(
-          height: 120,
-          child: LineChartWithStats(
-            data: values,
-            minVal: minVal,
-            maxVal: maxVal,
+          height: 60,
+          width: double.infinity,
+          child: CustomPaint(
+            painter: _CompactChartPainter(values, color),
           ),
-        ),
-        const SizedBox(height: 4),
-        // Show min/avg/max below chart
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _statLabel('Min', '${minVal.toStringAsFixed(1)}$unit'),
-            _statLabel('Avg', '${avgVal.toStringAsFixed(1)}$unit'),
-            _statLabel('Max', '${maxVal.toStringAsFixed(1)}$unit'),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _statLabel(String label, String value) {
-    return Column(
-      children: [
-        Text(
-          label,
-          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
         ),
       ],
     );
   }
 }
 
-class TempChart extends StatelessWidget {
-  final List<SensorData> data;
-  const TempChart({super.key, required this.data});
+class _CompactChartPainter extends CustomPainter {
+  final List<double?> values;
+  final Color color;
+  _CompactChartPainter(this.values, this.color);
 
   @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (ctx, constraints) {
-        final w = constraints.maxWidth;
-        final h = constraints.maxHeight > 0 ? constraints.maxHeight : 120.0;
-        return CustomPaint(
-          painter: _TempChartPainter(
-            data.map((e) => e.temperature).toList(),
-            Theme.of(context).colorScheme.primary,
-          ),
-          size: Size(w, h),
-        );
-      },
-    );
+  void paint(Canvas canvas, Size size) {
+    if (values.isEmpty) return;
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5
+      ..strokeCap = StrokeCap.round
+      ..color = color;
+
+    final fillPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [color.withOpacity(0.2), color.withOpacity(0)],
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+
+    final nums = values.where((v) => v != null).map((v) => v!).toList();
+    if (nums.isEmpty) return;
+    final minv = nums.reduce((a, b) => a < b ? a : b);
+    final maxv = nums.reduce((a, b) => a > b ? a : b);
+    final span = (maxv - minv) == 0 ? 1.0 : (maxv - minv);
+
+    final path = Path();
+    final fillPath = Path();
+
+    for (var i = 0; i < values.length; i++) {
+      final v = values[i] ?? minv;
+      final x = (i / (values.length - 1).clamp(1, double.infinity)) * size.width;
+      final y = size.height - ((v - minv) / span) * size.height;
+      if (i == 0) {
+        path.moveTo(x, y);
+        fillPath.moveTo(x, size.height);
+        fillPath.lineTo(x, y);
+      } else {
+        path.lineTo(x, y);
+        fillPath.lineTo(x, y);
+      }
+    }
+    fillPath.lineTo(size.width, size.height);
+    fillPath.close();
+
+    canvas.drawPath(fillPath, fillPaint);
+    canvas.drawPath(path, paint);
   }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
 
+// Keeping old chart classes for compatibility if referenced elsewhere
 class LineChartWithStats extends StatelessWidget {
   final List<double?> data;
   final double minVal;
@@ -582,251 +613,9 @@ class LineChartWithStats extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (ctx, constraints) {
-        final w = constraints.maxWidth;
-        final h = constraints.maxHeight > 0 ? constraints.maxHeight : 120.0;
-        return CustomPaint(
-          painter: _LineChartPainterWithStats(
-            data,
-            Theme.of(context).colorScheme.primary,
-            minVal,
-            maxVal,
-          ),
-          size: Size(w, h),
-        );
-      },
+    return CustomPaint(
+      painter: _CompactChartPainter(data, Theme.of(context).colorScheme.primary),
+      size: Size.infinite,
     );
   }
-}
-
-// Keep old chart classes for backward compatibility
-class HumChart extends StatelessWidget {
-  final List<SensorData> data;
-  const HumChart({super.key, required this.data});
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (ctx, constraints) {
-        final w = constraints.maxWidth;
-        final h = constraints.maxHeight > 0 ? constraints.maxHeight : 120.0;
-        return CustomPaint(
-          painter: _LineChartPainter(
-            data.map((e) => e.humidity).toList(),
-            Theme.of(context).colorScheme.primary,
-          ),
-          size: Size(w, h),
-        );
-      },
-    );
-  }
-}
-
-class SoilChart extends StatelessWidget {
-  final List<SensorData> data;
-  const SoilChart({super.key, required this.data});
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (ctx, constraints) {
-        final w = constraints.maxWidth;
-        final h = constraints.maxHeight > 0 ? constraints.maxHeight : 120.0;
-        return CustomPaint(
-          painter: _LineChartPainter(
-            data.map((e) => e.soilMoisture).toList(),
-            Theme.of(context).colorScheme.secondary,
-          ),
-          size: Size(w, h),
-        );
-      },
-    );
-  }
-}
-
-class LuxChart extends StatelessWidget {
-  final List<SensorData> data;
-  const LuxChart({super.key, required this.data});
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (ctx, constraints) {
-        final w = constraints.maxWidth;
-        final h = constraints.maxHeight > 0 ? constraints.maxHeight : 120.0;
-        return CustomPaint(
-          painter: _LineChartPainter(
-            data.map((e) => e.lux).toList(),
-            Theme.of(context).colorScheme.tertiary,
-          ),
-          size: Size(w, h),
-        );
-      },
-    );
-  }
-}
-
-class _TempChartPainter extends CustomPainter {
-  final List<double?> values;
-  final Color color;
-  _TempChartPainter(this.values, this.color);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..color = color;
-
-    final w = size.width;
-    final h = size.height;
-    final pts = <Offset>[];
-    final nums = values.where((v) => v != null).map((v) => v!).toList();
-    if (nums.isEmpty) return;
-    final minv = nums.reduce((a, b) => a < b ? a : b);
-    final maxv = nums.reduce((a, b) => a > b ? a : b);
-    final span = (maxv - minv) == 0 ? 1.0 : (maxv - minv);
-    for (var i = 0; i < values.length; i++) {
-      final v = values[i];
-      if (v == null) continue;
-      final x = (i / (values.length - 1)) * w;
-      final y = h - ((v - minv) / span) * h;
-      pts.add(Offset(x, y));
-    }
-    if (pts.length < 2) return;
-    final path = Path()..moveTo(pts.first.dx, pts.first.dy);
-    for (var i = 1; i < pts.length; i++) path.lineTo(pts[i].dx, pts[i].dy);
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
-}
-
-class _LineChartPainterWithStats extends CustomPainter {
-  final List<double?> values;
-  final Color color;
-  final double minVal;
-  final double maxVal;
-
-  _LineChartPainterWithStats(this.values, this.color, this.minVal, this.maxVal);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..color = color;
-
-    final w = size.width;
-    final h = size.height;
-    final padding = 30.0; // space for axis labels
-    final chartW = w - padding;
-    final chartH = h - padding;
-
-    final pts = <Offset>[];
-    final nums = values.where((v) => v != null).map((v) => v!).toList();
-    if (nums.isEmpty) return;
-
-    final span = (maxVal - minVal).abs() == 0 ? 1.0 : (maxVal - minVal).abs();
-
-    // Draw axis
-    canvas.drawLine(
-      Offset(padding, 0),
-      Offset(padding, chartH),
-      Paint()
-        ..color = Colors.grey.shade400
-        ..strokeWidth = 1,
-    );
-    canvas.drawLine(
-      Offset(padding, chartH),
-      Offset(w, chartH),
-      Paint()
-        ..color = Colors.grey.shade400
-        ..strokeWidth = 1,
-    );
-
-    // Draw Y-axis labels (min, max)
-    final textPainter1 = TextPainter(
-      text: TextSpan(
-        text: maxVal.toStringAsFixed(0),
-        style: const TextStyle(color: Colors.grey, fontSize: 10),
-      ),
-      textDirection: TextDirection.ltr,
-    );
-    textPainter1.layout();
-    textPainter1.paint(canvas, Offset(2, 0));
-
-    final textPainter2 = TextPainter(
-      text: TextSpan(
-        text: minVal.toStringAsFixed(0),
-        style: const TextStyle(color: Colors.grey, fontSize: 10),
-      ),
-      textDirection: TextDirection.ltr,
-    );
-    textPainter2.layout();
-    textPainter2.paint(canvas, Offset(2, chartH - 10));
-
-    // Plot points
-    for (var i = 0; i < values.length; i++) {
-      final v = values[i];
-      if (v == null) continue;
-      final x =
-          padding +
-          (i / (values.length - 1).clamp(1, double.infinity)) * chartW;
-      final y = chartH - ((v - minVal) / span) * chartH;
-      pts.add(Offset(x, y));
-    }
-
-    if (pts.length < 2) return;
-    final path = Path()..moveTo(pts.first.dx, pts.first.dy);
-    for (var i = 1; i < pts.length; i++) path.lineTo(pts[i].dx, pts[i].dy);
-    canvas.drawPath(path, paint);
-
-    // Draw current value point
-    if (pts.isNotEmpty) {
-      canvas.drawCircle(pts.last, 3, Paint()..color = color);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
-}
-
-class _LineChartPainter extends CustomPainter {
-  final List<double?> values;
-  final Color color;
-  _LineChartPainter(this.values, this.color);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..color = color;
-
-    final w = size.width;
-    final h = size.height;
-    final pts = <Offset>[];
-    final nums = values.where((v) => v != null).map((v) => v!).toList();
-    if (nums.isEmpty) return;
-    final minv = nums.reduce((a, b) => a < b ? a : b);
-    final maxv = nums.reduce((a, b) => a > b ? a : b);
-    final span = (maxv - minv) == 0 ? 1.0 : (maxv - minv);
-    for (var i = 0; i < values.length; i++) {
-      final v = values[i];
-      if (v == null) continue;
-      final x = (i / (values.length - 1).clamp(1, double.infinity)) * w;
-      final y = h - ((v - minv) / span) * h;
-      pts.add(Offset(x, y));
-    }
-    if (pts.length < 2) return;
-    final path = Path()..moveTo(pts.first.dx, pts.first.dy);
-    for (var i = 1; i < pts.length; i++) path.lineTo(pts[i].dx, pts[i].dy);
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }

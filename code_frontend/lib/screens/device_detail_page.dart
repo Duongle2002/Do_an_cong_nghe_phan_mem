@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-// chart package removed for compatibility; showing simple list instead
 import '../models/device.dart';
 import '../models/sensor_data.dart';
 import '../services/api.dart';
@@ -17,21 +16,19 @@ class DeviceDetailPage extends StatefulWidget {
   State<DeviceDetailPage> createState() => _DeviceDetailPageState();
 }
 
-class _DeviceDetailPageState extends State<DeviceDetailPage> {
+class _DeviceDetailPageState extends State<DeviceDetailPage> with SingleTickerProviderStateMixin {
   List<SensorData> _data = [];
   bool _loading = true;
-  // Automation form state
   bool _autoFan = false;
   bool _autoPump = false;
   bool _autoLight = false;
-  final _fanThrCtrl = TextEditingController(); // autoFanTempAbove
-  final _pumpThrCtrl = TextEditingController(); // autoPumpSoilBelow
-  final _lightThrCtrl = TextEditingController(); // autoLightLuxBelow
+  final _fanThrCtrl = TextEditingController();
+  final _pumpThrCtrl = TextEditingController();
+  final _lightThrCtrl = TextEditingController();
   final _fanHysCtrl = TextEditingController();
   final _pumpHysCtrl = TextEditingController();
   final _lightHysCtrl = TextEditingController();
-  final _minGapCtrl = TextEditingController(); // minToggleIntervalSec
-  // Control state + pending
+  final _minGapCtrl = TextEditingController();
   bool _pumpOn = false;
   bool _fanOn = false;
   bool _lightOn = false;
@@ -40,15 +37,23 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
   bool _lightPending = false;
   StreamSubscription<Map<String, dynamic>>? _sseSub;
 
+  late AnimationController _animationController;
+
   @override
   void initState() {
     super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
     _load();
     _initControls();
+    _animationController.forward();
   }
 
   @override
   void dispose() {
+    _animationController.dispose();
     _fanThrCtrl.dispose();
     _pumpThrCtrl.dispose();
     _lightThrCtrl.dispose();
@@ -64,226 +69,240 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
     setState(() => _loading = true);
     final auth = Provider.of<AuthService>(context, listen: false);
     try {
-      final raw = await Api.getSensorData(
-        auth.accessToken ?? '',
-        widget.device.id,
-        limit: 100,
-      );
-      _data = raw
-          .map((e) => SensorData.fromJson(e as Map<String, dynamic>))
-          .toList();
-    } catch (e) {
-      // ignore for now
-    } finally {
-      setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _sendCommand(String target, String action) async {
-    final auth = Provider.of<AuthService>(context, listen: false);
-    try {
-      await Api.createCommand(auth.accessToken ?? '', {
-        'deviceId': widget.device.id,
-        'target': target,
-        'action': action,
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Command $action sent to $target')),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to send command: $e')));
-    }
+      final raw = await Api.getSensorData(auth.accessToken ?? '', widget.device.id, limit: 100);
+      _data = raw.map((e) => SensorData.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (_) {}
+    finally { setState(() => _loading = false); }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF4F7F2),
       appBar: AppBar(
-        title: Text(widget.device.name),
+        title: Text(widget.device.name, style: const TextStyle(fontWeight: FontWeight.bold)),
         actions: [
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'alerts') {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => AlertSettingsPage(device: widget.device),
-                  ),
-                );
-              } else if (value == 'alertsLog') {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => AlertsListPage(device: widget.device),
-                  ),
-                );
-              }
-            },
-            itemBuilder: (ctx) => [
-              const PopupMenuItem(
-                value: 'alertsLog',
-                child: Row(
-                  children: [
-                    Icon(Icons.list, size: 20),
-                    SizedBox(width: 12),
-                    Text('Alerts Log'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'alerts',
-                child: Row(
-                  children: [
-                    Icon(Icons.notifications, size: 20),
-                    SizedBox(width: 12),
-                    Text('Alert Rules'),
-                  ],
-                ),
-              ),
-            ],
+          IconButton(
+            icon: const Icon(Icons.history),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AlertsListPage(device: widget.device))),
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AlertSettingsPage(device: widget.device))),
           ),
         ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: const EdgeInsets.all(12.0),
+          : SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Top: current metrics summary
-                  _buildCurrentMetrics(),
+                  _buildHeaderCard(),
+                  const SizedBox(height: 24),
+                  _buildSectionTitle('Live Metrics'),
                   const SizedBox(height: 12),
-                  // Middle: control buttons
-                  _buildControls(),
+                  _buildMetricsGrid(),
+                  const SizedBox(height: 24),
+                  _buildSectionTitle('Manual Control'),
                   const SizedBox(height: 12),
-                  // Bottom: automation settings (no history)
-                  Expanded(child: _buildAutomationSettings()),
+                  _buildControlPanel(),
+                  const SizedBox(height: 24),
+                  _buildSectionTitle('Intelligent Automation'),
+                  const SizedBox(height: 12),
+                  _buildAutomationCard(),
+                  const SizedBox(height: 40),
                 ],
               ),
             ),
     );
   }
 
-  Widget _buildControls() {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 1,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const ListTile(
-              title: Text(
-                'Điều khiển thủ công',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              dense: true,
+  Widget _buildSectionTitle(String title) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Text(
+        title.toUpperCase(),
+        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1.5),
+      ),
+    );
+  }
+
+  Widget _buildHeaderCard() {
+    final status = widget.device.status ?? 'offline';
+    final isOnline = status == 'online';
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2E7D32),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [BoxShadow(color: Colors.green.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 8))],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle),
+            child: const Icon(Icons.developer_board, color: Colors.white, size: 30),
+          ),
+          const SizedBox(width: 20),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(widget.device.name, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                Text(widget.device.location ?? 'Main Greenhouse', style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 13)),
+              ],
             ),
-            SwitchListTile(
-              title: const Text('Bơm (Pump)'),
-              secondary: _pumpPending
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.water_drop),
-              value: _pumpOn,
-              onChanged: _pumpPending ? null : (v) => _toggleTarget('pump', v),
-            ),
-            SwitchListTile(
-              title: const Text('Quạt (Fan)'),
-              secondary: _fanPending
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.air),
-              value: _fanOn,
-              onChanged: _fanPending ? null : (v) => _toggleTarget('fan', v),
-            ),
-            SwitchListTile(
-              title: const Text('Đèn (Light)'),
-              secondary: _lightPending
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.lightbulb),
-              value: _lightOn,
-              onChanged: _lightPending
-                  ? null
-                  : (v) => _toggleTarget('light', v),
-            ),
-          ],
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(color: isOnline ? Colors.greenAccent.withOpacity(0.2) : Colors.redAccent.withOpacity(0.2), borderRadius: BorderRadius.circular(12), border: Border.all(color: isOnline ? Colors.greenAccent : Colors.redAccent, width: 0.5)),
+            child: Text(status.toUpperCase(), style: TextStyle(color: isOnline ? Colors.greenAccent : Colors.redAccent, fontSize: 10, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetricsGrid() {
+    final latest = _data.isNotEmpty ? _data.first : null;
+    return GridView.count(
+      shrinkWrap: true,
+      crossAxisCount: 2,
+      childAspectRatio: 1.5,
+      mainAxisSpacing: 15,
+      crossAxisSpacing: 15,
+      physics: const NeverScrollableScrollPhysics(),
+      children: [
+        _metricCard('Temperature', latest?.temperature, '°C', Icons.thermostat, Colors.orange),
+        _metricCard('Humidity', latest?.humidity, '%', Icons.water_drop, Colors.blue),
+        _metricCard('Soil Moisture', latest?.soilMoisture, '%', Icons.grass, Colors.brown),
+        _metricCard('Illumination', latest?.lux, 'Lx', Icons.light_mode, Colors.amber),
+      ],
+    );
+  }
+
+  Widget _metricCard(String label, double? value, String unit, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Icon(icon, color: color, size: 20),
+              Text(unit, style: const TextStyle(color: Colors.grey, fontSize: 10)),
+            ],
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(value != null ? value.toStringAsFixed(1) : '--', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+              Text(label, style: const TextStyle(color: Colors.grey, fontSize: 11)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildControlPanel() {
+    return Row(
+      children: [
+        _tacticalToggle('PUMP', Icons.water_drop, _pumpOn, _pumpPending, (v) => _toggleTarget('pump', v)),
+        const SizedBox(width: 15),
+        _tacticalToggle('FAN', Icons.air, _fanOn, _fanPending, (v) => _toggleTarget('fan', v)),
+        const SizedBox(width: 15),
+        _tacticalToggle('LIGHT', Icons.lightbulb, _lightOn, _lightPending, (v) => _toggleTarget('light', v)),
+      ],
+    );
+  }
+
+  Widget _tacticalToggle(String label, IconData icon, bool isOn, bool isPending, Function(bool) onChanged) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: isPending ? null : () => onChanged(!isOn),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          decoration: BoxDecoration(
+            color: isOn ? const Color(0xFF2E7D32) : Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: isOn ? [BoxShadow(color: Colors.green.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4))] : [],
+          ),
+          child: Column(
+            children: [
+              if (isPending)
+                const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              else
+                Icon(icon, color: isOn ? Colors.white : Colors.black54),
+              const SizedBox(height: 10),
+              Text(label, style: TextStyle(color: isOn ? Colors.white : Colors.black54, fontSize: 12, fontWeight: FontWeight.bold)),
+              Text(isOn ? 'ACTIVE' : 'READY', style: TextStyle(color: isOn ? Colors.white70 : Colors.black26, fontSize: 9)),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildCurrentMetrics() {
-    final latest = _data.isNotEmpty ? _data.first : null;
-    final temp = latest?.temperature;
-    final hum = latest?.humidity;
-    final soil = latest?.soilMoisture;
-    final lux = latest?.lux;
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 1,
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    widget.device.name,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                Text(
-                  widget.device.location ?? 'Unknown',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-              ],
+  Widget _buildAutomationCard() {
+    return Container(
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24)),
+      child: Column(
+        children: [
+          _automationRow('Fan Threshold', _autoFan, _fanThrCtrl, '°C', (v) => setState(() => _autoFan = v)),
+          const Divider(height: 1, indent: 20, endIndent: 20),
+          _automationRow('Pump Threshold', _autoPump, _pumpThrCtrl, '%', (v) => setState(() => _autoPump = v)),
+          const Divider(height: 1, indent: 20, endIndent: 20),
+          _automationRow('Light Threshold', _autoLight, _lightThrCtrl, 'Lx', (v) => setState(() => _autoLight = v)),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2E7D32), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
+                onPressed: _saveAutomation,
+                child: const Text('SAVE AUTOMATION RULES', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1)),
+              ),
             ),
-            const SizedBox(height: 8),
-            GridView.count(
-              shrinkWrap: true,
-              crossAxisCount: 2,
-              physics: const NeverScrollableScrollPhysics(),
-              childAspectRatio: 2.3,
-              mainAxisSpacing: 8,
-              crossAxisSpacing: 8,
-              children: [
-                _metricChip(
-                  'Temp',
-                  temp != null ? '${temp.toStringAsFixed(1)} °C' : '—',
-                ),
-                _metricChip(
-                  'Hum',
-                  hum != null ? '${hum.toStringAsFixed(1)} %' : '—',
-                ),
-                _metricChip('Lux', lux != null ? lux.toStringAsFixed(0) : '—'),
-                _metricChip(
-                  'Soil',
-                  soil != null ? soil.toStringAsFixed(1) : '—',
-                ),
-              ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _automationRow(String label, bool enabled, TextEditingController ctrl, String unit, Function(bool) onToggle) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              Switch.adaptive(value: enabled, activeColor: Colors.green, onChanged: onToggle),
+            ],
+          ),
+          if (enabled) ...[
+            const SizedBox(height: 10),
+            TextField(
+              controller: ctrl,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                suffixText: unit,
+                hintText: 'Enter threshold value',
+                contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
+              ),
             ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -291,33 +310,19 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
   Future<void> _refreshControlState() async {
     final auth = Provider.of<AuthService>(context, listen: false);
     try {
-      final cmds = await Api.listCommands(
-        auth.accessToken ?? '',
-        deviceId: widget.device.id,
-      );
-      bool? pump;
-      bool? fan;
-      bool? light;
+      final cmds = await Api.listCommands(auth.accessToken ?? '', deviceId: widget.device.id);
+      bool? pump, fan, light;
       for (final c in cmds) {
         if (c is Map<String, dynamic>) {
           final target = c['target'] as String?;
           final action = c['action'] as String?;
-          if (target == null || action == null) continue;
-          final isOn = action.toUpperCase() == 'ON';
-          switch (target) {
-            case 'pump':
-              pump = isOn;
-              break;
-            case 'fan':
-              fan = isOn;
-              break;
-            case 'light':
-              light = isOn;
-              break;
-          }
+          final isOn = action?.toUpperCase() == 'ON';
+          if (target == 'pump') pump = isOn;
+          if (target == 'fan') fan = isOn;
+          if (target == 'light') light = isOn;
         }
       }
-      setState(() {
+      if (mounted) setState(() {
         if (pump != null) _pumpOn = pump;
         if (fan != null) _fanOn = fan;
         if (light != null) _lightOn = light;
@@ -328,12 +333,10 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
   void _initControls() {
     _refreshControlState();
     _loadDeviceSettings();
-    // Subscribe SSE for status updates
     final auth = Provider.of<AuthService>(context, listen: false);
     try {
       final ext = widget.device.externalId ?? widget.device.id;
-      final stream = Api.subscribeDeviceStream(auth.accessToken, ext);
-      _sseSub = stream.listen((evt) {
+      _sseSub = Api.subscribeDeviceStream(auth.accessToken, ext).listen((evt) {
         final target = evt['target'] as String?;
         final state = evt['state'];
         final relayFan = evt['relayFan'];
@@ -341,44 +344,25 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
         final relayPump = evt['relayPump'];
         setState(() {
           if (target != null && state is bool) {
-            switch (target) {
-              case 'pump':
-                _pumpOn = state;
-                break;
-              case 'fan':
-                _fanOn = state;
-                break;
-              case 'light':
-                _lightOn = state;
-                break;
-            }
+            if (target == 'pump') _pumpOn = state;
+            if (target == 'fan') _fanOn = state;
+            if (target == 'light') _lightOn = state;
           }
           if (relayFan is String) _fanOn = relayFan.toUpperCase() == 'ON';
           if (relayLight is String) _lightOn = relayLight.toUpperCase() == 'ON';
           if (relayPump is String) _pumpOn = relayPump.toUpperCase() == 'ON';
-          // Update latest metrics from telemetry if present
           final t = evt['temperature'];
           final h = evt['humidity'];
           final s = evt['soilMoisture'];
           final l = evt['lux'];
           if (t is num || h is num || s is num || l is num) {
-            final now = DateTime.now();
-            final sd = SensorData(
-              timestamp: now,
-              temperature: t is num
-                  ? t.toDouble()
-                  : (_data.isNotEmpty ? _data.first.temperature : null),
-              humidity: h is num
-                  ? h.toDouble()
-                  : (_data.isNotEmpty ? _data.first.humidity : null),
-              soilMoisture: s is num
-                  ? s.toDouble()
-                  : (_data.isNotEmpty ? _data.first.soilMoisture : null),
-              lux: l is num
-                  ? l.toDouble()
-                  : (_data.isNotEmpty ? _data.first.lux : null),
-            );
-            _data = [sd];
+            _data = [SensorData(
+              timestamp: DateTime.now(),
+              temperature: t is num ? t.toDouble() : (_data.isNotEmpty ? _data.first.temperature : null),
+              humidity: h is num ? h.toDouble() : (_data.isNotEmpty ? _data.first.humidity : null),
+              soilMoisture: s is num ? s.toDouble() : (_data.isNotEmpty ? _data.first.soilMoisture : null),
+              lux: l is num ? l.toDouble() : (_data.isNotEmpty ? _data.first.lux : null),
+            ), ..._data.take(99)];
           }
         });
       });
@@ -393,254 +377,53 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
         _autoFan = dev['autoFanEnabled'] == true;
         _autoPump = dev['autoPumpEnabled'] == true;
         _autoLight = dev['autoLightEnabled'] == true;
-        if (dev['autoFanTempAbove'] != null)
-          _fanThrCtrl.text = dev['autoFanTempAbove'].toString();
-        if (dev['autoPumpSoilBelow'] != null)
-          _pumpThrCtrl.text = dev['autoPumpSoilBelow'].toString();
-        if (dev['autoLightLuxBelow'] != null)
-          _lightThrCtrl.text = dev['autoLightLuxBelow'].toString();
-        if (dev['autoFanHysteresis'] != null)
-          _fanHysCtrl.text = dev['autoFanHysteresis'].toString();
-        if (dev['autoPumpHysteresis'] != null)
-          _pumpHysCtrl.text = dev['autoPumpHysteresis'].toString();
-        if (dev['autoLightHysteresis'] != null)
-          _lightHysCtrl.text = dev['autoLightHysteresis'].toString();
-        if (dev['minToggleIntervalSec'] != null)
-          _minGapCtrl.text = dev['minToggleIntervalSec'].toString();
+        if (dev['autoFanTempAbove'] != null) _fanThrCtrl.text = dev['autoFanTempAbove'].toString();
+        if (dev['autoPumpSoilBelow'] != null) _pumpThrCtrl.text = dev['autoPumpSoilBelow'].toString();
+        if (dev['autoLightLuxBelow'] != null) _lightThrCtrl.text = dev['autoLightLuxBelow'].toString();
       });
     } catch (_) {}
   }
 
-  Widget _metricChip(String label, String value) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: TextStyle(color: Colors.grey.shade700)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAutomationSettings() {
-    return SingleChildScrollView(
-      child: Card(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        elevation: 1,
-        child: ExpansionTile(
-          title: const Text('Tự động theo ngưỡng'),
-          subtitle: const Text('Bật/tắt tự động và ngưỡng — ẩn bớt cho gọn'),
-          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          children: [
-            // FAN
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text(
-                'Quạt (Fan) — bật khi nhiệt độ ≥ ngưỡng, tắt khi xuống dưới',
-              ),
-              value: _autoFan,
-              onChanged: (v) => setState(() => _autoFan = v),
-            ),
-            Row(
-              children: [
-                Expanded(
-                  child: _numField(
-                    'Ngưỡng nhiệt độ (°C)',
-                    _fanThrCtrl,
-                    hint: 'vd: 30.0',
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _numField(
-                    'Hysteresis (°C)',
-                    _fanHysCtrl,
-                    hint: 'vd: 1.0',
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            // PUMP
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text(
-                'Bơm (Pump) — bật khi ẩm đất ≤ ngưỡng, tắt khi vượt ngưỡng',
-              ),
-              value: _autoPump,
-              onChanged: (v) => setState(() => _autoPump = v),
-            ),
-            Row(
-              children: [
-                Expanded(
-                  child: _numField(
-                    'Ngưỡng ẩm đất',
-                    _pumpThrCtrl,
-                    hint: 'vd: 40.0',
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _numField('Hysteresis', _pumpHysCtrl, hint: 'vd: 2.0'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            // LIGHT
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text(
-                'Đèn (Light) — bật khi Lux ≤ ngưỡng, tắt khi vượt ngưỡng',
-              ),
-              value: _autoLight,
-              onChanged: (v) => setState(() => _autoLight = v),
-            ),
-            Row(
-              children: [
-                Expanded(
-                  child: _numField(
-                    'Ngưỡng Lux',
-                    _lightThrCtrl,
-                    hint: 'vd: 2500',
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _numField('Hysteresis', _lightHysCtrl, hint: 'vd: 50'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            _numField(
-              'Khoảng cách lần bật/tắt tối thiểu (giây)',
-              _minGapCtrl,
-              hint: 'vd: 60',
-            ),
-            const SizedBox(height: 8),
-            const Text('Thiết bị sẽ tự TẮT khi vượt ngưỡng nhờ hysteresis.'),
-            const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton.icon(
-                onPressed: _saveAutomation,
-                icon: const Icon(Icons.save),
-                label: const Text('Lưu cấu hình'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Future<void> _toggleTarget(String target, bool desired) async {
-    String? pendingKey;
-    bool? prev;
     setState(() {
-      switch (target) {
-        case 'pump':
-          pendingKey = 'pump';
-          _pumpPending = true;
-          prev = _pumpOn;
-          _pumpOn = desired;
-          break;
-        case 'fan':
-          pendingKey = 'fan';
-          _fanPending = true;
-          prev = _fanOn;
-          _fanOn = desired;
-          break;
-        case 'light':
-          pendingKey = 'light';
-          _lightPending = true;
-          prev = _lightOn;
-          _lightOn = desired;
-          break;
-      }
+      if (target == 'pump') { _pumpPending = true; _pumpOn = desired; }
+      if (target == 'fan') { _fanPending = true; _fanOn = desired; }
+      if (target == 'light') { _lightPending = true; _lightOn = desired; }
     });
     try {
-      await _sendCommand(target, desired ? 'ON' : 'OFF');
+      await Api.createCommand(Provider.of<AuthService>(context, listen: false).accessToken ?? '', {
+        'deviceId': widget.device.id,
+        'target': target,
+        'action': desired ? 'ON' : 'OFF',
+      });
       await _refreshControlState();
     } catch (_) {
-      // revert
-      setState(() {
-        switch (target) {
-          case 'pump':
-            _pumpOn = prev ?? _pumpOn;
-            break;
-          case 'fan':
-            _fanOn = prev ?? _fanOn;
-            break;
-          case 'light':
-            _lightOn = prev ?? _lightOn;
-            break;
-        }
-      });
+      _refreshControlState();
     } finally {
-      setState(() {
-        switch (pendingKey) {
-          case 'pump':
-            _pumpPending = false;
-            break;
-          case 'fan':
-            _fanPending = false;
-            break;
-          case 'light':
-            _lightPending = false;
-            break;
-        }
+      if (mounted) setState(() {
+        if (target == 'pump') _pumpPending = false;
+        if (target == 'fan') _fanPending = false;
+        if (target == 'light') _lightPending = false;
       });
     }
-  }
-
-  Widget _numField(String label, TextEditingController ctrl, {String? hint}) {
-    return TextField(
-      controller: ctrl,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        border: const OutlineInputBorder(),
-      ),
-    );
   }
 
   Future<void> _saveAutomation() async {
     final auth = Provider.of<AuthService>(context, listen: false);
-    double? parseNum(String s) {
-      if (s.trim().isEmpty) return null;
-      return double.tryParse(s.trim());
-    }
-
-    final payload = <String, dynamic>{
+    final payload = {
       'autoFanEnabled': _autoFan,
-      'autoFanTempAbove': parseNum(_fanThrCtrl.text),
-      'autoFanHysteresis': parseNum(_fanHysCtrl.text),
+      'autoFanTempAbove': double.tryParse(_fanThrCtrl.text),
       'autoPumpEnabled': _autoPump,
-      'autoPumpSoilBelow': parseNum(_pumpThrCtrl.text),
-      'autoPumpHysteresis': parseNum(_pumpHysCtrl.text),
+      'autoPumpSoilBelow': double.tryParse(_pumpThrCtrl.text),
       'autoLightEnabled': _autoLight,
-      'autoLightLuxBelow': parseNum(_lightThrCtrl.text),
-      'autoLightHysteresis': parseNum(_lightHysCtrl.text),
-      'minToggleIntervalSec': parseNum(_minGapCtrl.text),
+      'autoLightLuxBelow': double.tryParse(_lightThrCtrl.text),
     }..removeWhere((k, v) => v == null);
-
     try {
       await Api.updateDevice(auth.accessToken ?? '', widget.device.id, payload);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Đã lưu cấu hình tự động')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Automation settings saved')));
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
     }
   }
 }
+

@@ -12,17 +12,14 @@ class AlertSettingsPage extends StatefulWidget {
   State<AlertSettingsPage> createState() => _AlertSettingsPageState();
 }
 
-class _AlertSettingsPageState extends State<AlertSettingsPage> {
+class _AlertSettingsPageState extends State<AlertSettingsPage> with SingleTickerProviderStateMixin {
   late List<Map<String, dynamic>> _rules = [];
   bool _loading = true;
   String? _error;
 
-  final List<String> _metrics = [
-    'temperature',
-    'humidity',
-    'soilMoisture',
-    'lux',
-  ];
+  late AnimationController _listController;
+
+  final List<String> _metrics = ['temperature', 'humidity', 'soilMoisture', 'lux'];
   final Map<String, String> _metricLabels = {
     'temperature': 'Temperature (°C)',
     'humidity': 'Humidity (%)',
@@ -33,23 +30,26 @@ class _AlertSettingsPageState extends State<AlertSettingsPage> {
   @override
   void initState() {
     super.initState();
+    _listController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
     _loadRules();
   }
 
+  @override
+  void dispose() {
+    _listController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadRules() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    setState(() { _loading = true; _error = null; });
     final auth = Provider.of<AuthService>(context, listen: false);
     try {
-      final raw = await Api.getAlertRules(
-        auth.accessToken ?? '',
-        deviceId: widget.device.id,
-      );
-      setState(() {
-        _rules = raw.cast<Map<String, dynamic>>();
-      });
+      final raw = await Api.getAlertRules(auth.accessToken ?? '', deviceId: widget.device.id);
+      setState(() => _rules = raw.cast<Map<String, dynamic>>());
+      _listController.forward(from: 0);
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
@@ -64,83 +64,52 @@ class _AlertSettingsPageState extends State<AlertSettingsPage> {
 
     showDialog(
       context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setState) => AlertDialog(
-            title: const Text('Add Alert Rule'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  DropdownButton<String>(
-                    isExpanded: true,
-                    value: selectedMetric,
-                    hint: const Text('Select Metric'),
-                    items: _metrics
-                        .map(
-                          (m) => DropdownMenuItem(
-                            value: m,
-                            child: Text(_metricLabels[m] ?? m),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (v) => setState(() => selectedMetric = v),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    decoration: const InputDecoration(
-                      labelText: 'Min Threshold (optional)',
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    onChanged: (v) => minThreshold = double.tryParse(v),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    decoration: const InputDecoration(
-                      labelText: 'Max Threshold (optional)',
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    onChanged: (v) => maxThreshold = double.tryParse(v),
-                  ),
-                ],
-              ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: const Text('Add Alert Rule', style: TextStyle(fontWeight: FontWeight.bold)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  decoration: InputDecoration(labelText: 'Metric', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
+                  value: selectedMetric,
+                  items: _metrics.map((m) => DropdownMenuItem(value: m, child: Text(_metricLabels[m] ?? m))).toList(),
+                  onChanged: (v) => setState(() => selectedMetric = v),
+                ),
+                const SizedBox(height: 15),
+                TextField(
+                  decoration: InputDecoration(labelText: 'Min Threshold', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  onChanged: (v) => minThreshold = double.tryParse(v),
+                ),
+                const SizedBox(height: 15),
+                TextField(
+                  decoration: InputDecoration(labelText: 'Max Threshold', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  onChanged: (v) => maxThreshold = double.tryParse(v),
+                ),
+              ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: selectedMetric == null
-                    ? null
-                    : () async {
-                        Navigator.pop(ctx);
-                        await _createRule(
-                          selectedMetric!,
-                          minThreshold,
-                          maxThreshold,
-                        );
-                      },
-                child: const Text('Add'),
-              ),
-            ],
           ),
-        );
-      },
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2E7D32), foregroundColor: Colors.white),
+              onPressed: selectedMetric == null ? null : () async {
+                Navigator.pop(ctx);
+                await _createRule(selectedMetric!, minThreshold, maxThreshold);
+              },
+              child: const Text('Add Rule'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
-  Future<void> _createRule(
-    String metric,
-    double? minThreshold,
-    double? maxThreshold,
-  ) async {
+  Future<void> _createRule(String metric, double? minThreshold, double? maxThreshold) async {
     final auth = Provider.of<AuthService>(context, listen: false);
     try {
       await Api.createAlertRule(auth.accessToken ?? '', {
@@ -150,213 +119,111 @@ class _AlertSettingsPageState extends State<AlertSettingsPage> {
         'maxThreshold': maxThreshold,
         'enabled': true,
       });
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Rule added')));
-        _loadRules();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
-      }
-    }
+      _loadRules();
+    } catch (_) {}
   }
 
   Future<void> _updateRule(String ruleId, Map<String, dynamic> updates) async {
     final auth = Provider.of<AuthService>(context, listen: false);
     try {
       await Api.updateAlertRule(auth.accessToken ?? '', ruleId, updates);
-      if (mounted) _loadRules();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
-      }
-    }
-  }
-
-  void _showEditCooldownDialog(Map<String, dynamic> rule) {
-    int cooldown = rule['cooldownMinutes'] ?? 5;
-
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setState) => AlertDialog(
-            title: const Text('Edit Cooldown'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('Current: $cooldown minute(s)'),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    for (final val in [1, 5, 10, 30, 60])
-                      ElevatedButton(
-                        onPressed: () => setState(() => cooldown = val),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: cooldown == val
-                              ? Colors.blue
-                              : Colors.grey,
-                        ),
-                        child: Text('$val\''),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  _updateRule(rule['_id'], {'cooldownMinutes': cooldown});
-                },
-                child: const Text('Save'),
-              ),
-            ],
-          ),
-        );
-      },
-    );
+      _loadRules();
+    } catch (_) {}
   }
 
   Future<void> _deleteRule(String ruleId) async {
     final auth = Provider.of<AuthService>(context, listen: false);
     try {
       await Api.deleteAlertRule(auth.accessToken ?? '', ruleId);
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Rule deleted')));
-        _loadRules();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
-      }
-    }
+      _loadRules();
+    } catch (_) {}
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('${widget.device.name} - Alert Rules')),
+      backgroundColor: const Color(0xFFF4F7F2),
+      appBar: AppBar(
+        title: Text('${widget.device.name} Rules', style: const TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
           ? Center(child: Text('Error: $_error'))
           : _rules.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text('No alert rules yet'),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: _showAddRuleDialog,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add Rule'),
-                  ),
-                ],
-              ),
-            )
+          ? _buildEmptyState()
           : ListView.builder(
               itemCount: _rules.length,
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               itemBuilder: (ctx, idx) {
                 final rule = _rules[idx];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  child: ExpansionTile(
-                    title: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _metricLabels[rule['metric']] ?? rule['metric'],
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Min: ${rule['minThreshold'] ?? '—'} | Max: ${rule['maxThreshold'] ?? '—'}',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Switch(
-                          value: rule['enabled'] ?? true,
-                          onChanged: (v) {
-                            _updateRule(rule['_id'], {'enabled': v});
-                          },
-                        ),
-                      ],
-                    ),
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Notification: ${rule['notificationType'] ?? 'app'}',
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Cooldown: ${rule['cooldownMinutes'] ?? 5} min',
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              children: [
-                                ElevatedButton.icon(
-                                  onPressed: () =>
-                                      _showEditCooldownDialog(rule),
-                                  icon: const Icon(Icons.schedule, size: 16),
-                                  label: const Text('Cooldown'),
-                                ),
-                                ElevatedButton.icon(
-                                  onPressed: () => _deleteRule(rule['_id']),
-                                  icon: const Icon(Icons.delete, size: 16),
-                                  label: const Text('Delete'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.red,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+                return AnimatedBuilder(
+                  animation: _listController,
+                  builder: (context, child) {
+                    final animation = CurvedAnimation(
+                      parent: _listController,
+                      curve: Interval((idx / (_rules.length > 10 ? 10 : _rules.length)) * 0.5, 1.0, curve: Curves.easeOut),
+                    );
+                    return Opacity(opacity: animation.value, child: Transform.translate(offset: Offset(0, 20 * (1 - animation.value)), child: child));
+                  },
+                  child: _buildRuleCard(rule),
                 );
               },
             ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: _showAddRuleDialog,
-        child: const Icon(Icons.add),
+        label: const Text('Add Rule'),
+        icon: const Icon(Icons.add_alert_outlined),
+        backgroundColor: const Color(0xFF2E7D32),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.rule_outlined, size: 80, color: Colors.grey.shade300),
+          const SizedBox(height: 16),
+          const Text('No alert rules set for this device', style: TextStyle(color: Colors.grey, fontSize: 16)),
+          const SizedBox(height: 20),
+          ElevatedButton(onPressed: _showAddRuleDialog, child: const Text('Set First Rule')),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRuleCard(Map<String, dynamic> rule) {
+    final metric = rule['metric'] ?? '';
+    final label = _metricLabels[metric] ?? metric;
+    final enabled = rule['enabled'] == true;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      child: ExpansionTile(
+        tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        title: Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+        subtitle: Text('Min: ${rule['minThreshold'] ?? '—'} | Max: ${rule['maxThreshold'] ?? '—'}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+        trailing: Switch.adaptive(value: enabled, activeColor: Colors.green, onChanged: (v) => _updateRule(rule['_id'], {'enabled': v})),
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton.icon(onPressed: () => _deleteRule(rule['_id']), icon: const Icon(Icons.delete_outline, size: 18, color: Colors.redAccent), label: const Text('Delete', style: TextStyle(color: Colors.redAccent))),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
