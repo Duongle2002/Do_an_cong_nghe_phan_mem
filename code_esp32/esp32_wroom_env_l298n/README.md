@@ -1,82 +1,70 @@
-# SmartFarm – ESP32 multi-board architecture
+# SmartFarm 2-layer ESP32 architecture
 
-This folder contains three Arduino sketches for a split-hardware design:
+This folder now reflects the split design:
 
-- ESP32-C3 mini: reads pH sensor and controls a pump via relay
-- ESP32-WROOM: reads temperature/humidity (DHT) and soil moisture, drives fan + light through L298N with PWM
-- ESP32-S3 N16R8: runs an embedded MQTT broker and automation controller; optionally bridges to your Node.js MQTT broker
+- ESP32-WROOM acts as the sensor node only.
+- ESP32-S3 handles TinyML decisions and relay control locally.
+- Server / Flutter stay above the hardware layer and consume MQTT/HTTP from the Node.js backend.
+- Both ESP32 boards now expose a first-boot WiFi setup portal and save credentials in NVS.
 
-Required Arduino libraries:
-- PubSubClient (by Nick O'Leary)
-- ArduinoJson (by Benoit Blanchon)
-- DHT sensor library (by Adafruit) + Adafruit Unified Sensor (for the WROOM sketch)
-- TinyMqtt (by h2zero) for the ESP32-S3 broker
-- WiFiManager (by tzapu) for captive portal configuration on ESP32-S3
-- Adafruit GFX + Adafruit SSD1306 (for the 0.96" I2C OLED on ESP32-S3)
+## Sketches
 
-Directory structure:
-- `esp32_c3_ph_pump/esp32_c3_ph_pump.ino`
-- `esp32_wroom_env_l298n/esp32_wroom_env_l298n.ino`
-- `esp32_s3_mqtt_broker_controller/esp32_s3_mqtt_broker_controller.ino`
+- [esp32_wroom_env_l298n.ino](esp32_wroom_env_l298n.ino) publishes telemetry only.
+- [esp32_s3_mqtt_broker_controller.ino](esp32_s3_mqtt_broker_controller/esp32_s3_mqtt_broker_controller.ino) subscribes to telemetry, runs heuristic control, and drives relays.
 
-MQTT topics and payloads:
-- Data: `smartfarm/sensor`
-  - Example payloads:
-    - C3: `{ "deviceId": "esp32c3-ph", "pH": 6.85, "pump": 0 }`
-    - WROOM: `{ "deviceId": "esp32wroom-env", "temperature": 30.2, "humidity": 65.5, "soilMoisture": 48, "fanDuty": 120, "lightDuty": 0 }`
-- Control: `smartfarm/control`
-  - Commands:
-    - Pump: `{ "deviceId": "esp32c3-ph" | "*" | "pump", "action": "ON_PUMP"|"OFF_PUMP" }`
-    - Fan: `{ "deviceId": "esp32wroom-env" | "*" | "env", "action": "ON_FAN"|"OFF_FAN"|"SET_FAN", "value": 0..255 }`
-    - Light: `{ "deviceId": "esp32wroom-env" | "*" | "env", "action": "ON_LIGHT"|"OFF_LIGHT"|"SET_LIGHT", "value": 0..255 }`
-- Alert: `smartfarm/alert`
-  - Example: `{ "deviceId": "esp32c3-ph", "alert": "pH out of range: 8.1" }`
+## MQTT flow
 
-Pin suggestions (adjust to your wiring):
-- ESP32-C3 SuperMini
-  - pH sensor analog: GPIO1 (ADC1_CH1)
-  - Pump relay: GPIO7
-  - Lưu ý: tránh dùng các chân boot-strap cho điều khiển/ADC để không ảnh hưởng chế độ boot.
-- ESP32-WROOM
-  - DHT22: GPIO4
-  - Soil moisture (analog): GPIO34
-  - L298N Fan: IN1 GPIO27, IN2 GPIO26, ENA PWM GPIO14
-  - L298N Light: IN3 GPIO25, IN4 GPIO33, ENB PWM GPIO32
-- ESP32-S3: no pins required (broker only)
-  - If using OLED I2C 0.96" (SSD1306): SDA=GPIO8, SCL=GPIO9 (editable via macros `OLED_SDA`/`OLED_SCL`), address 0x3C
+- Sensor telemetry: `sensors/<sensorId>/data`
+- Control commands to the S3: `controllers/<sensorId>/control[/fan|light|pump]`
+- Relay state from the S3: `controllers/<sensorId>/state`
 
-AP+STA topology (recommended):
-- ESP32-S3 acts as both AP and STA.
-  - AP SSID: `MySmartFarm_Network` (configurable), typically gives AP IP `192.168.4.1`.
-  - STA connects to your home router for Internet and Node.js access.
-- ESP32-C3 and ESP32-WROOM connect to the S3 AP and use the AP IP as MQTT broker.
-- S3 bridges sensor/control with your external MQTT broker when STA is online.
+Example sensor payload:
 
-Setup steps:
-1) Flash ESP32-S3 first. On boot, it opens a configuration portal if STA isn't configured:
-  - Connect your phone/PC to WiFi `SmartFarm_Config` (password `12345678`).
-  - Open the captive portal, enter your home WiFi (STA), AP SSID/password for child devices, and bridge host/port.
-  - Settings are saved to NVS; S3 then runs AP+STA and starts the MQTT broker.
-2) In C3 and WROOM sketches, set:
-  - `WIFI_SSID`/`WIFI_PASSWORD` to S3’s AP credentials
-  - `MQTT_BROKER_IP` to S3 AP IP (default often `192.168.4.1`)
-3) Flash C3 and WROOM; verify both get IPs in the AP and publish to `smartfarm/sensor`.
-4) Node.js server subscribes to `smartfarm/sensor` and publishes on `smartfarm/control` as before.
+```json
+{
+  "id": "esp32-ABCDEF123456",
+  "node_type": "sensor",
+  "temperature": 30.2,
+  "humidity": 65.5,
+  "pressure_hpa": 1008.4,
+  "lux": 420.0,
+  "soil_pct": 48,
+  "soil_raw": 1820,
+  "uptime_s": 1234
+}
+```
 
-OLED screen on S3:
-- Wiring: VCC->3V3, GND->GND, SDA->GPIO8, SCL->GPIO9 (or adjust in sketch).
-- The S3 screen shows: AP/STA IPs, latest T/H/Soil/pH, current Fan/Light/Pump duty/state, and seconds since last update.
+Example controller state payload:
 
-Calibration notes:
-- pH: adjust `PH_SLOPE` and `PH_INTERCEPT` using two-point calibration with pH7.00 and pH4.00 buffer solutions.
-- Soil moisture: tune the conversion from ADC to % depending on your sensor and wiring.
+```json
+{
+  "id": "esp32-ABCDEF123456",
+  "controller_id": "esp32s3-1234ABCD",
+  "reason": "auto",
+  "relay_fan": true,
+  "relay_light": false,
+  "relay_pump": true
+}
+```
 
-Troubleshooting:
-- If devices don't receive control commands, ensure all subscribe to `smartfarm/control` and their `deviceId` filtering matches.
-- If Node.js isn't receiving data, verify the S3 bridge config and broker reachability from the server.
+## Wiring hints
 
-PH module (6-pin) wiring notes:
-- Many pH modules expose: V+, GND, AO/PO (analog), DO (digital comparator output), and trimmers/test points.
-- For ESP32 ADC measurements, connect only V+, GND, and AO/PO to an ADC pin (GPIO1 in SuperMini suggestion).
-- Ensure AO voltage never exceeds 3.3V. If the board outputs near 5V, you MUST add a resistor divider (e.g., 10k:20k) to bring it under 3.3V.
-- In code, ADC attenuation is set to 11dB for better headroom (`analogSetPinAttenuation(..., ADC_11db)`).
+- ESP32-WROOM sensor node
+  - BH1750: SDA GPIO21, SCL GPIO22
+  - AHTX0 / BMP280: same I2C bus
+  - Soil moisture: GPIO34
+- ESP32-S3 controller node
+  - OLED: SDA GPIO8, SCL GPIO9
+  - Relays: edit `RELAY_FAN_PIN`, `RELAY_LIGHT_PIN`, `RELAY_PUMP_PIN` in the sketch to match your wiring
+  - Buttons: fan GPIO4, light GPIO5, pump GPIO13
+
+## Deployment order
+
+1. Flash the ESP32-WROOM first and confirm it publishes `sensors/<sensorId>/data`.
+2. Flash the ESP32-S3 and confirm it receives the sensor telemetry, then drives the relay outputs locally.
+3. Keep the Node.js server connected to the same MQTT broker. It already exposes HTTP APIs for the Flutter app and now understands the controller namespace too.
+
+## Notes
+
+- The WROOM sketch is intentionally telemetry-only, so it boots faster and stays simpler.
+- The S3 sketch keeps AI inference and actuator control together, which makes the control loop more resilient if the sensor node temporarily drops offline.

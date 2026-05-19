@@ -32,6 +32,7 @@ class MyApp extends StatelessWidget {
       value: auth,
       child: MaterialApp(
         title: 'Smart Farm',
+        debugShowCheckedModeBanner: false,
         theme: ThemeData(
           useMaterial3: true,
           colorScheme: ColorScheme.fromSeed(

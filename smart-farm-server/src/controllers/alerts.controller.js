@@ -1,6 +1,7 @@
 const { body, query } = require('express-validator');
 const Alert = require('../models/Alert');
 const Device = require('../models/Device');
+const checkDeviceAccess = require('../utils/checkDeviceAccess');
 
 const createValidators = [
   body('deviceId').isString().notEmpty(),
@@ -11,9 +12,13 @@ const createValidators = [
 
 async function create(req, res) {
   const { deviceId, type, message, timestamp } = req.body;
-  const device = await Device.findById(deviceId);
-  if (!device) return res.status(404).json({ message: 'Device not found' });
-  if (req.user.role !== 'Admin' && device.ownerId.toString() !== req.user.id) return res.status(403).json({ message: 'Forbidden' });
+  try {
+    await checkDeviceAccess(deviceId, req.user);
+  } catch (err) {
+    if (err.code === 'NOT_FOUND') return res.status(404).json({ message: 'Device not found' });
+    if (err.code === 'FORBIDDEN') return res.status(403).json({ message: 'Forbidden' });
+    throw err;
+  }
   const alert = await Alert.create({ deviceId, type, message, timestamp: timestamp || new Date() });
   res.status(201).json(alert);
 }

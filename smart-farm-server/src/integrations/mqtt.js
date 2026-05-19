@@ -28,7 +28,7 @@ function initMqtt(app) {
   client.on('connect', () => {
     console.log('MQTT connected');
     // Follow ESP topics: telemetry published by devices on sensors/<id>/data
-    client.subscribe(['sensors/+/data', 'sensors/+/status', 'devices/+/cmd/ack'], { qos: Number(process.env.MQTT_QOS || 1) }, (err) => {
+    client.subscribe(['sensors/+/data', 'sensors/+/status', 'controllers/+/state', 'devices/+/cmd/ack'], { qos: Number(process.env.MQTT_QOS || 1) }, (err) => {
       if (err) console.error('MQTT subscribe error', err);
     });
   });
@@ -37,6 +37,7 @@ function initMqtt(app) {
   client.on('error', (err) => console.error('MQTT error', err.message));
 
   client.on('message', async (topic, payload) => {
+    console.log('MQTT received:', topic, payload.toString());
     try {
       const parts = topic.split('/');
       const msg = payload.toString();
@@ -209,6 +210,73 @@ function initMqtt(app) {
         return;
       }
 
+      // controllers/{deviceId}/state: relay state updates from ESP32-S3
+      if (parts[0] === 'controllers' && parts[2] === 'state') {
+        const externalId = parts[1];
+        let data;
+        try { data = JSON.parse(msg); } catch (_) { console.warn('Controller JSON parse failed for externalId', externalId); return; }
+
+        let device = await Device.findOne({ externalId });
+        if (!device) {
+          const ownerForAuto = process.env.AUTO_PROVISION_OWNER_ID;
+          if (ownerForAuto) {
+            try {
+              device = await Device.create({
+                name: externalId,
+                externalId,
+                ownerId: ownerForAuto,
+                location: '',
+                firmwareVersion: '',
+                status: 'online',
+              });
+              console.log('Auto-provisioned device for controller externalId', externalId);
+            } catch (e) {
+              console.warn('Auto-provision failed for controller externalId', externalId, e.message);
+            }
+          }
+        }
+
+        if (!device) {
+          console.warn('Controller state ignored: no device mapped for externalId', externalId);
+          return;
+        }
+
+        const stateUpdates = { status: 'online', lastSeenAt: new Date() };
+        if (typeof data.relay_fan === 'boolean') stateUpdates.lastFanState = data.relay_fan ? 'ON' : 'OFF';
+        if (typeof data.relay_light === 'boolean') stateUpdates.lastLightState = data.relay_light ? 'ON' : 'OFF';
+        if (typeof data.relay_pump === 'boolean') stateUpdates.lastPumpState = data.relay_pump ? 'ON' : 'OFF';
+
+        try {
+          const delta = {};
+          if (typeof stateUpdates.lastFanState === 'string' && stateUpdates.lastFanState !== device.lastFanState) delta.lastFanToggleAt = new Date();
+          if (typeof stateUpdates.lastLightState === 'string' && stateUpdates.lastLightState !== device.lastLightState) delta.lastLightToggleAt = new Date();
+          if (typeof stateUpdates.lastPumpState === 'string' && stateUpdates.lastPumpState !== device.lastPumpState) delta.lastPumpToggleAt = new Date();
+          await Device.findByIdAndUpdate(device._id, { $set: stateUpdates, $currentDate: delta }).catch(() => {});
+          if (typeof stateUpdates.lastFanState === 'string') device.lastFanState = stateUpdates.lastFanState;
+          if (typeof stateUpdates.lastLightState === 'string') device.lastLightState = stateUpdates.lastLightState;
+          if (typeof stateUpdates.lastPumpState === 'string') device.lastPumpState = stateUpdates.lastPumpState;
+        } catch (__){
+          Device.findByIdAndUpdate(device._id, stateUpdates).catch(() => {});
+        }
+
+        if (appRef && appRef.locals && typeof appRef.locals.pushTelemetry === 'function') {
+          const pushPayload = {
+            externalId,
+            temperature: typeof data.temperature === 'number' ? data.temperature : undefined,
+            humidity: typeof data.humidity === 'number' ? data.humidity : undefined,
+            soilMoisture: typeof data.soil_pct === 'number' ? data.soil_pct : undefined,
+            lux: typeof data.lux === 'number' ? data.lux : undefined,
+            relayFan: stateUpdates.lastFanState || device.lastFanState,
+            relayLight: stateUpdates.lastLightState || device.lastLightState,
+            relayPump: stateUpdates.lastPumpState || device.lastPumpState,
+            status: 'online',
+            ts: data.timestamp ? new Date(data.timestamp) : new Date(),
+          };
+          appRef.locals.pushTelemetry(externalId, pushPayload);
+        }
+        return;
+      }
+
       // devices/{deviceId}/cmd/ack -> keep support for future acks
       if (parts[0] === 'devices' && parts[2] === 'cmd' && parts[3] === 'ack') {
         const deviceId = parts[1];
@@ -229,8 +297,8 @@ function initMqtt(app) {
 
   api.publishControl = (deviceId, target, action, cmd) => {
     if (!client || !client.connected) return;
-    // ESP expects sensors/<id>/control[/fan|/light|/pump]
-    const base = `sensors/${deviceId}/control`;
+    // ESP32-S3 expects controllers/<id>/control[/fan|/light|/pump]
+    const base = `controllers/${deviceId}/control`;
     const topic = target && target !== 'main' ? `${base}/${target}` : base;
     const payload = action; // plain text: ON/OFF
     client.publish(topic, payload, { qos: Number(process.env.MQTT_QOS || 1), retain: false });

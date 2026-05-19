@@ -1,0 +1,47 @@
+{
+  "features": [
+    "temp",
+    "hum",
+    "soil",
+    "lux"
+  ],
+  "labels": [
+    "fan",
+    "light",
+    "pump"
+  ],
+  "feature_ranges": {
+    "temp": {
+      "min": 15.0,
+      "max": 45.0
+    },
+    "hum": {
+      "min": 0.0,
+      "max": 100.0
+    },
+    "soil": {
+      "min": 0.0,
+      "max": 100.0
+    },
+    "lux": {
+      "min": 0.0,
+      "max": 5000.0
+    }
+  },
+  "normalization": "(value - min) / (max - min)",
+  "input_order": [
+    "temp",
+    "hum",
+    "soil",
+    "lux"
+  ],
+  "output_order": [
+    "fan",
+    "light",
+    "pump"
+  ],
+  "activation_thresholds": {
+    "on": 0.6,
+    "off": 0.45
+  }
+}
