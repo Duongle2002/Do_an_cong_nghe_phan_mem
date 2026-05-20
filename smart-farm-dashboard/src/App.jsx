@@ -36,7 +36,98 @@ function NavLink({ to, children }) {
 }
 
 export default function App() {
-  const { isAuthed, logout } = useAuth()
+  const { isAuthed, logout, user } = useAuth()
+  const location = useLocation()
+  
+  // Parse query params to highlight active sidebar link
+  const searchParams = new URLSearchParams(location.search)
+  const activeTab = searchParams.get('tab') || 'overview'
+
+  if (isAuthed) {
+    return (
+      <div className="app-layout-sidebar">
+        {/* Sidebar */}
+        <aside className="sidebar">
+          <div className="sidebar-brand">
+            <div className="sidebar-logo">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
+                <path d="M17,8C8,10,5.9,16.17,3.82,21.34L5.71,22l1-2.3A4.49,4.49,0,0,0,8,20C19,20,22,3,22,3,21,5,14,5.25,9,6.25S2,11.5,2,13.5a6.22,6.22,0,0,0,1.75,3.75C7,8,17,8,17,8Z"/>
+              </svg>
+              <span>GreenGuard AI</span>
+            </div>
+            <div className="sidebar-subtitle">TINYML INTEGRATED</div>
+          </div>
+
+          <nav className="sidebar-menu">
+            <Link 
+              to="/devices?tab=overview" 
+              className={`sidebar-link ${activeTab === 'overview' ? 'active' : ''}`}
+            >
+              <span style={{ fontSize: 16 }}>📊</span>
+              <span>Tổng quan</span>
+            </Link>
+            
+            <Link 
+              to="/devices?tab=control" 
+              className={`sidebar-link ${activeTab === 'control' ? 'active' : ''}`}
+            >
+              <span style={{ fontSize: 16 }}>⚙️</span>
+              <span>Điều khiển</span>
+            </Link>
+
+            <Link 
+              to="/devices?tab=map" 
+              className={`sidebar-link ${activeTab === 'map' ? 'active' : ''}`}
+            >
+              <span style={{ fontSize: 16 }}>🗺️</span>
+              <span>Bản đồ</span>
+            </Link>
+
+            <Link 
+              to="/devices?tab=analytics" 
+              className={`sidebar-link ${activeTab === 'analytics' ? 'active' : ''}`}
+            >
+              <span style={{ fontSize: 16 }}>📈</span>
+              <span>Phân tích</span>
+            </Link>
+
+            <Link 
+              to="/devices?tab=ai" 
+              className={`sidebar-link ${activeTab === 'ai' ? 'active' : ''}`}
+            >
+              <span style={{ fontSize: 16 }}>💬</span>
+              <span>Trợ lý AI</span>
+            </Link>
+          </nav>
+
+          <div className="sidebar-footer">
+            <button 
+              className="btn btn-outline" 
+              onClick={logout}
+              style={{ width: '100%', justifyContent: 'center', gap: 8, borderRadius: 10 }}
+            >
+              <span>🚪</span>
+              <span>Đăng xuất</span>
+            </button>
+          </div>
+        </aside>
+
+        {/* Main Content Area */}
+        <main className="main-content">
+          <Routes>
+            <Route path="/login" element={<Navigate to="/devices" replace />} />
+            <Route path="/register" element={<Navigate to="/devices" replace />} />
+            <Route path="/devices" element={<Private><DevicesPage /></Private>} />
+            <Route path="/devices/new" element={<Private><CreateDevicePage /></Private>} />
+            <Route path="/devices/:id" element={<Private><DeviceDetailPage /></Private>} />
+            <Route path="*" element={<Navigate to="/devices" replace />} />
+          </Routes>
+        </main>
+      </div>
+    )
+  }
+
+  // Otherwise, render old top navbar layout for login/register
   return (
     <div className="container">
       <header className="app-header">
@@ -55,23 +146,10 @@ export default function App() {
         </div>
 
         <nav className="nav">
-          {isAuthed && <NavLink to="/devices">Thiết bị</NavLink>}
-          {isAuthed ? (
-            <button
-              className="btn btn-outline"
-              onClick={logout}
-              style={{ fontSize: 13 }}
-            >
-              Đăng xuất
-            </button>
-          ) : (
-            <>
-              <NavLink to="/login">Đăng nhập</NavLink>
-              <Link to="/register" className="btn btn-primary" style={{ fontSize: 13, padding: '7px 14px' }}>
-                Đăng ký
-              </Link>
-            </>
-          )}
+          <NavLink to="/login">Đăng nhập</NavLink>
+          <Link to="/register" className="btn btn-primary" style={{ fontSize: 13, padding: '7px 14px' }}>
+            Đăng ký
+          </Link>
         </nav>
       </header>
 
@@ -80,10 +158,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
-        <Route path="/devices" element={<Private><DevicesPage /></Private>} />
-        <Route path="/devices/new" element={<Private><CreateDevicePage /></Private>} />
-        <Route path="/devices/:id" element={<Private><DeviceDetailPage /></Private>} />
-        <Route path="*" element={<Navigate to="/devices" replace />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </div>
   )
