@@ -99,16 +99,11 @@ export default function App() {
               <span>Trợ lý AI</span>
             </Link>
           </nav>
-
-          <div className="sidebar-footer">
-            <button 
-              className="btn btn-outline" 
-              onClick={logout}
-              style={{ width: '100%', justifyContent: 'center', gap: 8, borderRadius: 10 }}
-            >
-              <span>🚪</span>
-              <span>Đăng xuất</span>
-            </button>
+          <div className="sidebar-footer" style={{ borderTop: 'none', padding: '16px 8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: '#10b981', fontWeight: 600, letterSpacing: '0.5px' }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', display: 'inline-block', animation: 'pulse-green 1.5s infinite' }} />
+              SYSTEM OPERATIONAL
+            </div>
           </div>
         </aside>
 
