@@ -29,7 +29,7 @@ def main() -> None:
     header = f"""#pragma once
 
 // Generated from {args.input.name}. Do not edit manually.
-const unsigned char {args.symbol}[] = {{
+alignas(16) const unsigned char {args.symbol}[] = {{
   {body}
 }};
 

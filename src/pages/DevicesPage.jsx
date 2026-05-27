@@ -1,15 +1,24 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import api from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import AutomationPanel from '../components/AutomationPanel'
 import SchedulesPanel from '../components/SchedulesPanel'
+import DeviceSettingsPanel from '../components/DeviceSettingsPanel'
 import { AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 
 export default function DevicesPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user } = useAuth()
+  const { user, logout } = useAuth()
+  const [showProfileMenu, setShowProfileMenu] = useState(false)
+
+  useEffect(() => {
+    if (!showProfileMenu) return;
+    const close = () => setShowProfileMenu(false);
+    window.addEventListener('click', close);
+    return () => window.removeEventListener('click', close);
+  }, [showProfileMenu])
   
   // Parse query parameter to render appropriate view tab
   const searchParams = new URLSearchParams(location.search)
@@ -322,7 +331,7 @@ export default function DevicesPage() {
   }
 
   // Handle empty state (No device added yet)
-  if (devices.length === 0) {
+  if (devices.length === 0 && activeTab !== 'device-settings') {
     return (
       <div className="page-enter">
         <div className="dashboard-header">
@@ -379,12 +388,89 @@ export default function DevicesPage() {
               ))}
             </select>
           )}
+
+          <Link 
+            to="/devices/new" 
+            className="btn btn-primary" 
+            style={{ 
+              padding: '6px 12px', 
+              fontSize: 13, 
+              borderRadius: 10, 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 6,
+              textDecoration: 'none'
+            }}
+          >
+            ➕ Thêm thiết bị
+          </Link>
           
-          <div className="user-profile">
+          <div 
+            className="user-profile" 
+            style={{ position: 'relative', cursor: 'pointer' }}
+            onClick={(e) => { e.stopPropagation(); setShowProfileMenu(!showProfileMenu); }}
+          >
             <div className="user-profile-info">
               <div className="user-profile-name">{user?.name || user?.username || user?.email || 'User'}</div>
             </div>
             <div className="user-avatar">{userInitials}</div>
+
+            {showProfileMenu && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                right: 0,
+                marginTop: 8,
+                background: '#0f121a',
+                border: '1px solid var(--border)',
+                borderRadius: 12,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                padding: '8px',
+                zIndex: 1000,
+                minWidth: 150,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 4
+              }}>
+                <Link to="/devices" style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  color: 'var(--text-dim)',
+                  transition: 'background 0.2s',
+                }} className="profile-menu-item">
+                  <span>🖥️</span> Trang thiết bị
+                </Link>
+                <Link to="/settings" style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  color: 'var(--text-dim)',
+                  transition: 'background 0.2s',
+                }} className="profile-menu-item">
+                  <span>⚙️</span> Cài đặt
+                </Link>
+                <div onClick={logout} style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  color: '#ef5350',
+                  transition: 'background 0.2s',
+                  cursor: 'pointer'
+                }} className="profile-menu-item">
+                  <span>🚪</span> Đăng xuất
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -406,7 +492,7 @@ export default function DevicesPage() {
                 <span className="metric-card-icon" style={{ color: '#ff7043' }}>🌡️</span>
               </div>
               <div className="metric-card-value">
-                {latest ? latest.temperature : '26.5'}
+                {latest ? (typeof latest.temperature === 'number' ? latest.temperature.toFixed(2) : latest.temperature) : '26.50'}
                 <span className="metric-card-unit">°C</span>
               </div>
             </div>
@@ -417,7 +503,7 @@ export default function DevicesPage() {
                 <span className="metric-card-icon" style={{ color: '#29b6f6' }}>💧</span>
               </div>
               <div className="metric-card-value">
-                {latest ? latest.humidity : '64'}
+                {latest ? (typeof latest.humidity === 'number' ? latest.humidity.toFixed(2) : latest.humidity) : '64.00'}
                 <span className="metric-card-unit">%</span>
               </div>
             </div>
@@ -880,6 +966,15 @@ export default function DevicesPage() {
             </button>
           </form>
         </div>
+      )}
+
+      {activeTab === 'device-settings' && (
+        <DeviceSettingsPanel 
+          devices={devices} 
+          setDevices={setDevices} 
+          activeDevice={activeDevice} 
+          setActiveDevice={setActiveDevice} 
+        />
       )}
     </div>
   )

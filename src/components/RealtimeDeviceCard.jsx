@@ -132,7 +132,11 @@ export default function RealtimeDeviceCard({ device }) {
                   fontFamily: 'DM Mono, monospace',
                   color: m.color,
                 }}>
-                  {latest[m.key] ?? '—'}
+                  {latest[m.key] !== undefined && latest[m.key] !== null 
+                    ? (typeof latest[m.key] === 'number' && (m.key === 'temperature' || m.key === 'humidity') 
+                      ? latest[m.key].toFixed(2) 
+                      : latest[m.key])
+                    : '—'}
                 </div>
               </div>
             ))}

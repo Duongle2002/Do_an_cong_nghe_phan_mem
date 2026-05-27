@@ -5,6 +5,7 @@ import RegisterPage from './pages/RegisterPage'
 import DevicesPage from './pages/DevicesPage'
 import DeviceDetailPage from './pages/DeviceDetailPage'
 import CreateDevicePage from './pages/CreateDevicePage'
+import SettingsPage from './pages/SettingsPage'
 import { useAuth } from './context/AuthContext'
 
 function Private({ children }) {
@@ -98,6 +99,13 @@ export default function App() {
               <span style={{ fontSize: 16 }}>💬</span>
               <span>Trợ lý AI</span>
             </Link>
+            <Link 
+              to="/devices?tab=device-settings" 
+              className={`sidebar-link ${activeTab === 'device-settings' ? 'active' : ''}`}
+            >
+              <span style={{ fontSize: 16 }}>🔌</span>
+              <span>Cài đặt thiết bị</span>
+            </Link>
           </nav>
 
           <div className="sidebar-footer">
@@ -120,6 +128,7 @@ export default function App() {
             <Route path="/devices" element={<Private><DevicesPage /></Private>} />
             <Route path="/devices/new" element={<Private><CreateDevicePage /></Private>} />
             <Route path="/devices/:id" element={<Private><DeviceDetailPage /></Private>} />
+            <Route path="/settings" element={<Private><SettingsPage /></Private>} />
             <Route path="*" element={<Navigate to="/devices" replace />} />
           </Routes>
         </main>

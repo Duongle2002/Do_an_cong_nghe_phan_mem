@@ -9,6 +9,10 @@ const DeviceSchema = new mongoose.Schema(
     firmwareVersion: { type: String, default: '' },
     // External identifier reported by device over MQTT (e.g., esp32-7C87CE30CCCC)
     externalId: { type: String, unique: true, sparse: true, index: true },
+    // Paired Sensor Node ID (only applicable for S3 controllers to follow a WROOM sensor node)
+    pairedSensorId: { type: String, default: '' },
+    // Operational mode
+    opMode: { type: String, enum: ['manual', 'auto', 'scheduled'], default: 'auto' },
     // Simple automation thresholds
     autoPumpEnabled: { type: Boolean, default: false },
     autoPumpSoilBelow: { type: Number }, // percentage
@@ -41,9 +45,10 @@ const DeviceSchema = new mongoose.Schema(
   schedPumpOn: { type: String },
   schedPumpOff: { type: String },
   schedPumpDays: { type: String },
-    createdAt: { type: Date, default: Date.now },
-  },
-  { minimize: true }
+  safetyWindows: { type: [{ start: String, end: String }], default: [] },
+  createdAt: { type: Date, default: Date.now },
+},
+{ minimize: true }
 );
 
 module.exports = mongoose.model('Device', DeviceSchema);

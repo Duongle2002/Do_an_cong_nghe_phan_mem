@@ -38,12 +38,24 @@ export default function RealtimeDeviceCard({ device }) {
           es.addEventListener('telemetry', (evt) => {
             try {
               const p = JSON.parse(evt.data)
-              setLatest({
-                timestamp: p.timestamp || Date.now(),
-                temperature: p.temperature,
-                humidity: p.humidity,
-                soilMoisture: p.soilMoisture ?? p.soil_pct,
-                lux: p.lux,
+              setLatest(prev => {
+                if (!prev) {
+                  return {
+                    timestamp: p.timestamp || Date.now(),
+                    temperature: p.temperature,
+                    humidity: p.humidity,
+                    soilMoisture: p.soilMoisture ?? p.soil_pct,
+                    lux: p.lux,
+                  }
+                }
+                return {
+                  ...prev,
+                  timestamp: p.timestamp || Date.now(),
+                  temperature: p.temperature !== undefined ? p.temperature : prev.temperature,
+                  humidity: p.humidity !== undefined ? p.humidity : prev.humidity,
+                  soilMoisture: (p.soilMoisture ?? p.soil_pct) !== undefined ? (p.soilMoisture ?? p.soil_pct) : prev.soilMoisture,
+                  lux: p.lux !== undefined ? p.lux : prev.lux,
+                }
               })
             } catch { }
           })
@@ -132,7 +144,11 @@ export default function RealtimeDeviceCard({ device }) {
                   fontFamily: 'DM Mono, monospace',
                   color: m.color,
                 }}>
-                  {latest[m.key] ?? '—'}
+                  {latest[m.key] !== undefined && latest[m.key] !== null 
+                    ? (typeof latest[m.key] === 'number' && (m.key === 'temperature' || m.key === 'humidity') 
+                      ? latest[m.key].toFixed(2) 
+                      : latest[m.key])
+                    : '—'}
                 </div>
               </div>
             ))}

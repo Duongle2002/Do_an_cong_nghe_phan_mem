@@ -36,6 +36,8 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> with SingleTickerPr
   bool _fanPending = false;
   bool _lightPending = false;
   StreamSubscription<Map<String, dynamic>>? _sseSub;
+  List<Device> _devices = [];
+  String? _selectedSensorId;
 
   late AnimationController _animationController;
 
@@ -71,6 +73,10 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> with SingleTickerPr
     try {
       final raw = await Api.getSensorData(auth.accessToken ?? '', widget.device.id, limit: 100);
       _data = raw.map((e) => SensorData.fromJson(e as Map<String, dynamic>)).toList();
+      if (widget.device.externalId?.startsWith('esp32s3-') == true) {
+        final rawDevices = await Api.getDevices(auth.accessToken ?? '');
+        _devices = rawDevices.map((e) => Device.fromJson(e as Map<String, dynamic>)).toList();
+      }
     } catch (_) {}
     finally { setState(() => _loading = false); }
   }
@@ -108,6 +114,12 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> with SingleTickerPr
                   const SizedBox(height: 12),
                   _buildControlPanel(),
                   const SizedBox(height: 24),
+                  if (widget.device.externalId?.startsWith('esp32s3-') == true) ...[
+                    _buildSectionTitle('Device Pairing'),
+                    const SizedBox(height: 12),
+                    _buildPairingCard(),
+                    const SizedBox(height: 24),
+                  ],
                   _buildSectionTitle('Intelligent Automation'),
                   const SizedBox(height: 12),
                   _buildAutomationCard(),
@@ -184,6 +196,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> with SingleTickerPr
   }
 
   Widget _metricCard(String label, double? value, String unit, IconData icon, Color color) {
+    final decimals = (label == 'Temperature' || label == 'Humidity') ? 2 : 1;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
@@ -201,7 +214,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> with SingleTickerPr
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(value != null ? value.toStringAsFixed(1) : '--', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+              Text(value != null ? value.toStringAsFixed(decimals) : '--', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
               Text(label, style: const TextStyle(color: Colors.grey, fontSize: 11)),
             ],
           ),
@@ -377,6 +390,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> with SingleTickerPr
         _autoFan = dev['autoFanEnabled'] == true;
         _autoPump = dev['autoPumpEnabled'] == true;
         _autoLight = dev['autoLightEnabled'] == true;
+        _selectedSensorId = dev['pairedSensorId'];
         if (dev['autoFanTempAbove'] != null) _fanThrCtrl.text = dev['autoFanTempAbove'].toString();
         if (dev['autoPumpSoilBelow'] != null) _pumpThrCtrl.text = dev['autoPumpSoilBelow'].toString();
         if (dev['autoLightLuxBelow'] != null) _lightThrCtrl.text = dev['autoLightLuxBelow'].toString();
@@ -424,6 +438,71 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> with SingleTickerPr
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
     }
+  }
+
+  Widget _buildPairingCard() {
+    final sensors = _devices.where((d) => d.id != widget.device.id && d.externalId != null && !d.externalId!.startsWith('esp32s3-')).toList();
+    final auth = Provider.of<AuthService>(context, listen: false);
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Ghép cặp Node cảm biến', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          const SizedBox(height: 6),
+          const Text('Chọn node cảm biến WROOM để liên kết dữ liệu điều khiển cho bộ rơ-le này.', style: TextStyle(color: Colors.grey, fontSize: 12)),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<String>(
+            value: _selectedSensorId != null && _selectedSensorId!.isNotEmpty ? _selectedSensorId : null,
+            decoration: InputDecoration(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
+              hintText: 'Chưa ghép cặp',
+            ),
+            items: [
+              const DropdownMenuItem<String>(
+                value: null,
+                child: Text('Không ghép cặp / Tắt liên kết'),
+              ),
+              ...sensors.map((s) => DropdownMenuItem<String>(
+                value: s.externalId,
+                child: Text('${s.name} (${s.externalId})'),
+              )),
+            ],
+            onChanged: (val) {
+              setState(() {
+                _selectedSensorId = val;
+              });
+            },
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2E7D32),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))
+              ),
+              onPressed: () async {
+                try {
+                  await Api.updateDevice(auth.accessToken ?? '', widget.device.id, {
+                    'pairedSensorId': _selectedSensorId ?? '',
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ghép đôi thiết bị thành công! S3 sẽ nhận cấu hình qua MQTT.')));
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to save pairing: $e')));
+                }
+              },
+              child: const Text('LƯU LIÊN KẾT THIẾT BỊ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1)),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

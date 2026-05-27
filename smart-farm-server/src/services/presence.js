@@ -2,7 +2,7 @@ const Device = require('../models/Device');
 
 let timer;
 
-function initPresenceWatcher(app, intervalMs = 30000, timeoutMs = 90000) {
+function initPresenceWatcher(app, intervalMs = 30000, timeoutMs = 120000) {
   if (timer) clearInterval(timer);
   timer = setInterval(async () => {
     const cutoff = new Date(Date.now() - timeoutMs);

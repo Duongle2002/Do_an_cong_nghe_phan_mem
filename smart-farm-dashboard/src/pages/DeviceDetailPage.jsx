@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 import api from '../api/client'
 import MetricChart from '../components/MetricChart'
 import AutomationPanel from '../components/AutomationPanel'
 import SchedulesPanel from '../components/SchedulesPanel'
+import PairingPanel from '../components/PairingPanel'
 
 function ControlBox({ title, icon, state, onChange }) {
   const isOn = state === 'ON'
@@ -70,7 +72,70 @@ const metricDisplay = [
 ]
 
 export default function DeviceDetailPage() {
+  const { user, logout } = useAuth()
+  const [showProfileMenu, setShowProfileMenu] = useState(false)
+
+  useEffect(() => {
+    if (!showProfileMenu) return;
+    const close = () => setShowProfileMenu(false);
+    window.addEventListener('click', close);
+    return () => window.removeEventListener('click', close);
+  }, [showProfileMenu])
+
+  const userInitials = useMemo(() => {
+    const displayName = user?.name || user?.username || user?.email || 'User'
+    const parts = displayName.split(' ')
+    return parts.map(p => p ? p[0] : '').join('').toUpperCase().slice(0, 2)
+  }, [user])
+
+  const navigate = useNavigate()
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editForm, setEditForm] = useState({ name: '', externalId: '', location: '' })
+  const [editError, setEditError] = useState('')
+  const [editBusy, setEditBusy] = useState(false)
+
   const { id } = useParams()
+
+  useEffect(() => {
+    if (device) {
+      setEditForm({
+        name: device.name || '',
+        externalId: device.externalId || '',
+        location: device.location || '',
+      })
+    }
+  }, [device, showEditModal])
+
+  async function handleEditSubmit(e) {
+    e.preventDefault()
+    setEditError('')
+    if (!editForm.name.trim()) return setEditError('Tên không được để trống')
+    setEditBusy(true)
+    try {
+      const res = await api.put(`/api/devices/${id}`, {
+        name: editForm.name.trim(),
+        externalId: editForm.externalId.trim() || undefined,
+        location: editForm.location.trim(),
+      })
+      setDevice(res.data)
+      setShowEditModal(false)
+      showMsg('Cập nhật thiết bị thành công!', 'ok')
+    } catch (err) {
+      setEditError(err.response?.data?.message || 'Không thể cập nhật thiết bị')
+    } finally {
+      setEditBusy(false)
+    }
+  }
+
+  async function handleDeleteDevice() {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa thiết bị này không?')) return;
+    try {
+      await api.delete(`/api/devices/${id}`);
+      navigate('/devices');
+    } catch (err) {
+      showMsg(err.response?.data?.message || 'Xóa thiết bị thất bại', 'err');
+    }
+  }
   const [device, setDevice] = useState(null)
   const [data, setData] = useState([])
   const [limit, setLimit] = useState(100)
@@ -156,15 +221,30 @@ export default function DeviceDetailPage() {
           if (payload.relayLight) setCmdLight(payload.relayLight)
           if (payload.relayPump) setCmdPump(payload.relayPump)
           if (payload.status) setDevice(prev => prev ? { ...prev, status: payload.status } : prev)
-          setData(prev => {
-            const next = [...prev]
-            const ts = payload.timestamp || Date.now()
-            if (!next.some(d => d.timestamp === ts)) {
-              next.push({ timestamp: ts, temperature: payload.temperature, humidity: payload.humidity, soilMoisture: payload.soilMoisture ?? payload.soil_pct, lux: payload.lux })
-              if (next.length > limit) next.splice(0, next.length - limit)
-            }
-            return next
-          })
+          
+          const hasSensorData = payload.temperature !== undefined || 
+                                payload.humidity !== undefined || 
+                                payload.soilMoisture !== undefined || 
+                                payload.soil_pct !== undefined || 
+                                payload.lux !== undefined
+
+          if (hasSensorData) {
+            setData(prev => {
+              const next = [...prev]
+              const ts = payload.timestamp || Date.now()
+              if (!next.some(d => d.timestamp === ts)) {
+                next.push({ 
+                  timestamp: ts, 
+                  temperature: payload.temperature, 
+                  humidity: payload.humidity, 
+                  soilMoisture: payload.soilMoisture ?? payload.soil_pct, 
+                  lux: payload.lux 
+                })
+                if (next.length > limit) next.splice(0, next.length - limit)
+              }
+              return next
+            })
+          }
         } catch { }
       })
       es.addEventListener('status', (evt) => {
@@ -209,11 +289,81 @@ export default function DeviceDetailPage() {
 
   return (
     <div className="page-enter grid" style={{ gap: 16 }}>
-      {/* Breadcrumb */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-muted)' }}>
-        <Link to="/devices" style={{ color: 'var(--accent)', fontWeight: 500 }}>Thiết bị</Link>
-        <span>/</span>
-        <span>{device.name}</span>
+      {/* Breadcrumb & Profile */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-muted)' }}>
+          <Link to="/devices" style={{ color: 'var(--accent)', fontWeight: 500 }}>Thiết bị</Link>
+          <span>/</span>
+          <span>{device.name}</span>
+        </div>
+
+        <div 
+          className="user-profile" 
+          style={{ position: 'relative', cursor: 'pointer' }}
+          onClick={(e) => { e.stopPropagation(); setShowProfileMenu(!showProfileMenu); }}
+        >
+          <div className="user-profile-info">
+            <div className="user-profile-name">{user?.name || user?.username || user?.email || 'User'}</div>
+          </div>
+          <div className="user-avatar">{userInitials}</div>
+
+          {showProfileMenu && (
+            <div style={{
+              position: 'absolute',
+              top: '100%',
+              right: 0,
+              marginTop: 8,
+              background: '#0f121a',
+              border: '1px solid var(--border)',
+              borderRadius: 12,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+              padding: '8px',
+              zIndex: 1000,
+              minWidth: 150,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 4
+            }}>
+              <Link to="/devices" style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '8px 12px',
+                borderRadius: 8,
+                fontSize: 13,
+                color: 'var(--text-dim)',
+                transition: 'background 0.2s',
+              }} className="profile-menu-item">
+                <span>🖥️</span> Trang thiết bị
+              </Link>
+              <Link to="/settings" style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '8px 12px',
+                borderRadius: 8,
+                fontSize: 13,
+                color: 'var(--text-dim)',
+                transition: 'background 0.2s',
+              }} className="profile-menu-item">
+                <span>⚙️</span> Cài đặt
+              </Link>
+              <div onClick={logout} style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '8px 12px',
+                borderRadius: 8,
+                fontSize: 13,
+                color: '#ef5350',
+                transition: 'background 0.2s',
+                cursor: 'pointer'
+              }} className="profile-menu-item">
+                <span>🚪</span> Đăng xuất
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Device overview card */}
@@ -232,6 +382,22 @@ export default function DeviceDetailPage() {
                   <span className="live-dot" />
                   {sseStatus === 'connected' ? 'Live' : sseStatus === 'connecting' ? 'Connecting...' : 'Offline'}
                 </span>
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                <button 
+                  className="btn btn-outline" 
+                  onClick={() => setShowEditModal(true)}
+                  style={{ padding: '4px 10px', fontSize: 12, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 4 }}
+                >
+                  ✏️ Sửa
+                </button>
+                <button 
+                  className="btn" 
+                  onClick={handleDeleteDevice}
+                  style={{ padding: '4px 10px', fontSize: 12, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(239,83,80,0.15)', borderColor: 'rgba(239,83,80,0.3)', color: '#ef9a9a' }}
+                >
+                  🗑️ Xóa
+                </button>
               </div>
             </div>
 
@@ -255,7 +421,11 @@ export default function DeviceDetailPage() {
                       fontFamily: 'DM Mono, monospace',
                       color: m.color,
                     }}>
-                      {latest[m.key] ?? '—'}
+                      {latest[m.key] !== undefined && latest[m.key] !== null 
+                        ? (typeof latest[m.key] === 'number' && (m.key === 'temperature' || m.key === 'humidity') 
+                          ? latest[m.key].toFixed(2) 
+                          : latest[m.key])
+                        : '—'}
                       <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 2 }}>{m.unit}</span>
                     </div>
                   </div>
@@ -294,6 +464,7 @@ export default function DeviceDetailPage() {
       </div>
 
       <SchedulesPanel deviceId={id} />
+      <PairingPanel device={device} onSaved={(d) => { setDevice(d); }} />
       <AutomationPanel device={device} onSaved={(d) => { setDevice(d); showMsg('Đã lưu cấu hình tự động', 'ok') }} />
 
       {/* Charts */}
@@ -322,6 +493,90 @@ export default function DeviceDetailPage() {
           <MetricChart title="Ánh sáng (Lux)" data={chartsData} dataKey="lux" color="#ffa726" />
         </div>
       </div>
+
+      {showEditModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.7)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: 16
+        }} onClick={() => setShowEditModal(false)}>
+          <div style={{
+            background: '#0f121a',
+            border: '1px solid var(--border)',
+            borderRadius: 16,
+            width: '100%',
+            maxWidth: 480,
+            overflow: 'hidden',
+            boxShadow: '0 24px 48px rgba(0,0,0,0.8)'
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ height: 3, background: 'linear-gradient(90deg, #10b981, #34d399)' }} />
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>✏️ Chỉnh sửa thiết bị</h3>
+              <button 
+                onClick={() => setShowEditModal(false)}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 16 }}
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleEditSubmit} style={{ padding: 24, display: 'grid', gap: 16 }}>
+              <div style={{ display: 'grid', gap: 6 }}>
+                <label style={{ fontSize: 13, color: 'var(--text-dim)', fontWeight: 600 }}>Tên thiết bị</label>
+                <input 
+                  type="text" 
+                  value={editForm.name} 
+                  onChange={e => setEditForm(prev => ({ ...prev, name: e.target.value }))}
+                  required 
+                />
+              </div>
+              <div style={{ display: 'grid', gap: 6 }}>
+                <label style={{ fontSize: 13, color: 'var(--text-dim)', fontWeight: 600 }}>External ID (Khớp với cấu hình ESP)</label>
+                <input 
+                  type="text" 
+                  value={editForm.externalId} 
+                  onChange={e => setEditForm(prev => ({ ...prev, externalId: e.target.value }))}
+                  placeholder="esp32-XXXX"
+                />
+              </div>
+              <div style={{ display: 'grid', gap: 6 }}>
+                <label style={{ fontSize: 13, color: 'var(--text-dim)', fontWeight: 600 }}>Vị trí / Khu vực</label>
+                <input 
+                  type="text" 
+                  value={editForm.location} 
+                  onChange={e => setEditForm(prev => ({ ...prev, location: e.target.value }))}
+                />
+              </div>
+              {editError && (
+                <div style={{ color: '#ef5350', fontSize: 12, fontWeight: 500 }}>
+                  ⚠️ {editError}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 10, marginTop: 10, justifyContent: 'flex-end' }}>
+                <button 
+                  type="button" 
+                  className="btn btn-outline" 
+                  onClick={() => setShowEditModal(false)}
+                >
+                  Hủy
+                </button>
+                <button 
+                  type="submit" 
+                  className="btn btn-primary" 
+                  disabled={editBusy}
+                >
+                  {editBusy ? 'Đang lưu...' : 'Lưu thay đổi'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

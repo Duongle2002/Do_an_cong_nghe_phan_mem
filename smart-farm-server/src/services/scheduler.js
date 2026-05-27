@@ -37,6 +37,16 @@ async function tick(publishControl) {
 
       publishControl(idForTopic, s.target || 'main', s.action || 'ON');
       await Schedule.findByIdAndUpdate(s._id, { lastRunAt: now }).catch(() => {});
+      
+      // Update device state in MongoDB immediately to prevent race conditions
+      if (s.target && s.target !== 'main') {
+        const stateUpdate = {};
+        const fieldState = `last${s.target.charAt(0).toUpperCase() + s.target.slice(1)}State`;
+        const fieldToggle = `last${s.target.charAt(0).toUpperCase() + s.target.slice(1)}ToggleAt`;
+        stateUpdate[fieldState] = s.action || 'ON';
+        stateUpdate[fieldToggle] = now;
+        await Device.findByIdAndUpdate(s.deviceId, { $set: stateUpdate }).catch(() => {});
+      }
     } catch (e) {
       // ignore
     }

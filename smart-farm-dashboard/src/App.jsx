@@ -5,6 +5,7 @@ import RegisterPage from './pages/RegisterPage'
 import DevicesPage from './pages/DevicesPage'
 import DeviceDetailPage from './pages/DeviceDetailPage'
 import CreateDevicePage from './pages/CreateDevicePage'
+import SettingsPage from './pages/SettingsPage'
 import { useAuth } from './context/AuthContext'
 
 function Private({ children }) {
@@ -38,7 +39,7 @@ function NavLink({ to, children }) {
 export default function App() {
   const { isAuthed, logout, user } = useAuth()
   const location = useLocation()
-  
+
   // Parse query params to highlight active sidebar link
   const searchParams = new URLSearchParams(location.search)
   const activeTab = searchParams.get('tab') || 'overview'
@@ -51,7 +52,7 @@ export default function App() {
           <div className="sidebar-brand">
             <div className="sidebar-logo">
               <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
-                <path d="M17,8C8,10,5.9,16.17,3.82,21.34L5.71,22l1-2.3A4.49,4.49,0,0,0,8,20C19,20,22,3,22,3,21,5,14,5.25,9,6.25S2,11.5,2,13.5a6.22,6.22,0,0,0,1.75,3.75C7,8,17,8,17,8Z"/>
+                <path d="M17,8C8,10,5.9,16.17,3.82,21.34L5.71,22l1-2.3A4.49,4.49,0,0,0,8,20C19,20,22,3,22,3,21,5,14,5.25,9,6.25S2,11.5,2,13.5a6.22,6.22,0,0,0,1.75,3.75C7,8,17,8,17,8Z" />
               </svg>
               <span>GreenGuard AI</span>
             </div>
@@ -59,50 +60,58 @@ export default function App() {
           </div>
 
           <nav className="sidebar-menu">
-            <Link 
-              to="/devices?tab=overview" 
+            <Link
+              to="/devices?tab=overview"
               className={`sidebar-link ${activeTab === 'overview' ? 'active' : ''}`}
             >
               <span style={{ fontSize: 16 }}>📊</span>
               <span>Tổng quan</span>
             </Link>
-            
-            <Link 
-              to="/devices?tab=control" 
+
+            <Link
+              to="/devices?tab=control"
               className={`sidebar-link ${activeTab === 'control' ? 'active' : ''}`}
             >
               <span style={{ fontSize: 16 }}>⚙️</span>
               <span>Điều khiển</span>
             </Link>
 
-            <Link 
-              to="/devices?tab=map" 
+            <Link
+              to="/devices?tab=map"
               className={`sidebar-link ${activeTab === 'map' ? 'active' : ''}`}
             >
               <span style={{ fontSize: 16 }}>🗺️</span>
               <span>Bản đồ</span>
             </Link>
 
-            <Link 
-              to="/devices?tab=analytics" 
+            <Link
+              to="/devices?tab=analytics"
               className={`sidebar-link ${activeTab === 'analytics' ? 'active' : ''}`}
             >
               <span style={{ fontSize: 16 }}>📈</span>
               <span>Phân tích</span>
             </Link>
 
-            <Link 
-              to="/devices?tab=ai" 
+            <Link
+              to="/devices?tab=ai"
               className={`sidebar-link ${activeTab === 'ai' ? 'active' : ''}`}
             >
               <span style={{ fontSize: 16 }}>💬</span>
               <span>Trợ lý AI</span>
             </Link>
+
+            <Link
+              to="/devices?tab=device-settings"
+              className={`sidebar-link ${activeTab === 'device-settings' ? 'active' : ''}`}
+            >
+              <span style={{ fontSize: 16 }}>🔌</span>
+              <span>Cài đặt thiết bị</span>
+            </Link>
           </nav>
 
           <div className="sidebar-footer">
-            <button 
-              className="btn btn-outline" 
+            <button
+              className="btn btn-outline"
               onClick={logout}
               style={{ width: '100%', justifyContent: 'center', gap: 8, borderRadius: 10 }}
             >
@@ -120,6 +129,7 @@ export default function App() {
             <Route path="/devices" element={<Private><DevicesPage /></Private>} />
             <Route path="/devices/new" element={<Private><CreateDevicePage /></Private>} />
             <Route path="/devices/:id" element={<Private><DeviceDetailPage /></Private>} />
+            <Route path="/settings" element={<Private><SettingsPage /></Private>} />
             <Route path="*" element={<Navigate to="/devices" replace />} />
           </Routes>
         </main>
@@ -130,31 +140,6 @@ export default function App() {
   // Otherwise, render old top navbar layout for login/register
   return (
     <div className="container">
-      <header className="app-header">
-        <div className="brand">
-          <div className="brand-badge floating-logo">
-            <svg viewBox="0 0 24 24" fill="#fff" width="24" height="24">
-              <path d="M17,8C8,10,5.9,16.17,3.82,21.34L5.71,22l1-2.3A4.49,4.49,0,0,0,8,20C19,20,22,3,22,3,21,5,14,5.25,9,6.25S2,11.5,2,13.5a6.22,6.22,0,0,0,1.75,3.75C7,8,17,8,17,8Z"/>
-            </svg>
-          </div>
-          <div>
-            <div className="brand-name">Smart Farm</div>
-            <div className="small" style={{ color: 'var(--text-muted)', marginTop: -2 }}>
-              Digital Agriculture Control
-            </div>
-          </div>
-        </div>
-
-        <nav className="nav">
-          <NavLink to="/login">Đăng nhập</NavLink>
-          <Link to="/register" className="btn btn-primary" style={{ fontSize: 13, padding: '7px 14px' }}>
-            Đăng ký
-          </Link>
-        </nav>
-      </header>
-
-      <div style={{ height: 20 }} />
-
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />

@@ -60,7 +60,7 @@ async function updateDevice(req, res) {
   if (req.user.role !== 'Admin' && device.ownerId.toString() !== req.user.id) {
     return res.status(403).json({ message: 'Forbidden' });
   }
-  const { name, location, status, firmwareVersion, externalId,
+  const { name, location, status, firmwareVersion, externalId, pairedSensorId, opMode, safetyWindows,
     autoPumpEnabled, autoPumpSoilBelow, autoFanEnabled, autoFanTempAbove,
     autoLightEnabled, autoLightLuxBelow,
     autoFanHysteresis, autoPumpHysteresis, autoLightHysteresis,
@@ -73,11 +73,40 @@ async function updateDevice(req, res) {
   if (location) device.location = location;
   if (status) device.status = status;
   if (firmwareVersion) device.firmwareVersion = firmwareVersion;
+  if (opMode) {
+    device.opMode = opMode;
+    if (device.externalId) {
+      try {
+        const { mqtt } = require('../integrations/mqtt');
+        mqtt.publishControl(device.externalId, 'mode', opMode);
+      } catch (err) {
+        console.error('Failed to publish S3 opMode update:', err.message);
+      }
+    }
+  }
+  if (safetyWindows) device.safetyWindows = safetyWindows;
   if (externalId) {
     const existing = await Device.findOne({ externalId, _id: { $ne: device._id } }).lean();
     if (existing) return res.status(409).json({ message: 'externalId already in use' });
     device.externalId = externalId;
   }
+  if (typeof pairedSensorId === 'string') {
+    const oldPaired = device.pairedSensorId;
+    device.pairedSensorId = pairedSensorId;
+    // If it's an S3 controller and pairing has changed, publish the config update via MQTT
+    if (oldPaired !== pairedSensorId && device.externalId && device.externalId.startsWith('esp32s3-')) {
+      try {
+        const { mqtt } = require('../integrations/mqtt');
+        mqtt.publishConfig(device.externalId, { pairedSensorId });
+      } catch (err) {
+        console.error('Failed to publish S3 pairing config:', err.message);
+      }
+    }
+  }
+  const autoChanged = (typeof autoPumpEnabled === 'boolean' && autoPumpEnabled !== device.autoPumpEnabled) ||
+                      (typeof autoFanEnabled === 'boolean' && autoFanEnabled !== device.autoFanEnabled) ||
+                      (typeof autoLightEnabled === 'boolean' && autoLightEnabled !== device.autoLightEnabled);
+
   if (typeof autoPumpEnabled === 'boolean') device.autoPumpEnabled = autoPumpEnabled;
   if (typeof autoPumpSoilBelow === 'number') device.autoPumpSoilBelow = autoPumpSoilBelow;
   if (typeof autoFanEnabled === 'boolean') device.autoFanEnabled = autoFanEnabled;
@@ -98,6 +127,16 @@ async function updateDevice(req, res) {
   if (typeof schedPumpOff === 'string') device.schedPumpOff = schedPumpOff;
   if (typeof schedPumpDays === 'string') device.schedPumpDays = schedPumpDays;
   await device.save();
+
+  if (autoChanged && (device.autoFanEnabled || device.autoPumpEnabled || device.autoLightEnabled) && device.externalId) {
+    try {
+      const { mqtt } = require('../integrations/mqtt');
+      mqtt.publishControl(device.externalId, 'auto', '1');
+    } catch (err) {
+      console.error('Failed to publish S3 clear override config:', err.message);
+    }
+  }
+
   res.json(device);
 }
 

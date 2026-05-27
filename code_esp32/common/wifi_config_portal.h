@@ -118,12 +118,43 @@ private:
   }
 
   void tryConnectStored() {
-    if (_ssid.isEmpty()) return;
+    if (_ssid.isEmpty()) {
+      Serial.println("[WifiConfigPortal] Khong co thong tin WiFi duoc luu.");
+      return;
+    }
+    Serial.printf("[WifiConfigPortal] Dang thu ket noi toi WiFi luu san: \"%s\"...\n", _ssid.c_str());
+    
+    // Reset hoan toan vi mach WiFi
+    WiFi.disconnect(true);
+    WiFi.mode(WIFI_OFF);
+    delay(200);
+    
+    // Khoi chay che do STA va cho driver khoi dong xong
     WiFi.mode(WIFI_STA);
+    delay(500); // Cho driver WiFi khoi dong on dinh
+    
     WiFi.begin(_ssid.c_str(), _password.c_str());
     unsigned long start = millis();
-    while (WiFi.status() != WL_CONNECTED && millis() - start < 20000UL) {
-      delay(300);
+    while (WiFi.status() != WL_CONNECTED && millis() - start < 30000UL) {
+      delay(1000);
+      wl_status_t stat = WiFi.status();
+      Serial.print("[WiFi] Status: ");
+      switch(stat) {
+        case WL_IDLE_STATUS: Serial.println("IDLE_STATUS (Dang chuan bi...)"); break;
+        case WL_NO_SSID_AVAIL: Serial.println("NO_SSID_AVAIL (Khong thay SSID)"); break;
+        case WL_SCAN_COMPLETED: Serial.println("SCAN_COMPLETED"); break;
+        case WL_CONNECTED: Serial.println("CONNECTED (Da ket noi)"); break;
+        case WL_CONNECT_FAILED: Serial.println("CONNECT_FAILED (Sai mat khau hoac loi bao mat)"); break;
+        case WL_CONNECTION_LOST: Serial.println("CONNECTION_LOST (Mat ket noi)"); break;
+        case WL_DISCONNECTED: Serial.println("DISCONNECTED (Chua ket noi/Dang doi IP...)"); break;
+        default: Serial.println(stat); break;
+      }
+    }
+    Serial.println();
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.printf("[WifiConfigPortal] Ket noi WiFi THANH CONG! IP: %s\n", WiFi.localIP().toString().c_str());
+    } else {
+      Serial.println("[WifiConfigPortal] Ket noi WiFi THAT BAI (Timeout 30s). Chuyen sang phat AP de cau hinh.");
     }
   }
 
@@ -175,12 +206,12 @@ private:
         _server.send(400, "text/plain", "SSID is required");
         return;
       }
+      Serial.printf("[WifiConfigPortal] Da nhan cau hinh WiFi tu web portal: SSID=\"%s\"\n", ssid.c_str());
       save(ssid, password);
-      _server.send(200, "text/html; charset=utf-8", "<html><body><h3>Saved. Reconnecting...</h3><p>You can close this page.</p></body></html>");
-      delay(500);
-      WiFi.disconnect(true, true);
-      WiFi.mode(WIFI_STA);
-      WiFi.begin(_ssid.c_str(), _password.c_str());
+      _server.send(200, "text/html; charset=utf-8", "<html><body><h3>Da luu thong tin! ESP32-S3 se khoi dong lai de ket noi vao WiFi.</h3><p>Ban co the dong trang nay.</p></body></html>");
+      delay(1000);
+      Serial.println("[WifiConfigPortal] Dang khoi dong lai thiet bi...");
+      ESP.restart();
     });
 
     _server.on("/reset", HTTP_GET, [this]() {

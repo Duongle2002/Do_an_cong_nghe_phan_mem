@@ -21,6 +21,17 @@ async function create(req, res) {
     throw err;
   }
   const cmd = await Command.create({ deviceId, userId: req.user.id, target, action, status: 'pending' });
+  
+  // Update device state in MongoDB immediately to prevent race conditions with AI state messages
+  if (target && target !== 'main') {
+    const stateUpdate = {};
+    const fieldState = `last${target.charAt(0).toUpperCase() + target.slice(1)}State`;
+    const fieldToggle = `last${target.charAt(0).toUpperCase() + target.slice(1)}ToggleAt`;
+    stateUpdate[fieldState] = action;
+    stateUpdate[fieldToggle] = new Date();
+    await Device.findByIdAndUpdate(deviceId, { $set: stateUpdate }).catch(() => {});
+  }
+
   // Publish to MQTT for ESP32-S3 controller (controllers/<externalId>/control/<target>)
   try {
     const idForTopic = device.externalId || deviceId;

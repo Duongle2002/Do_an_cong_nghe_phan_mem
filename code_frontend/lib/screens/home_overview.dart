@@ -504,7 +504,7 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> with SingleTickerPr
               children: [
                 Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
                 Text(
-                  value != null ? '${value.toStringAsFixed(1)}$unit' : '--',
+                  value != null ? '${value.toStringAsFixed((label == 'Temp' || label == 'Hum') ? 2 : 1)}$unit' : '--',
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                 ),
               ],
@@ -528,7 +528,7 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> with SingleTickerPr
           children: [
             Text(title, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
             if (nums.isNotEmpty)
-              Text('${nums.first.toStringAsFixed(1)}$unit', style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.bold)),
+              Text('${nums.first.toStringAsFixed((title == 'Temperature' || title == 'Humidity') ? 2 : 1)}$unit', style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.bold)),
           ],
         ),
         const SizedBox(height: 8),

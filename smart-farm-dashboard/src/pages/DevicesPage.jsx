@@ -1,15 +1,24 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import api from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import AutomationPanel from '../components/AutomationPanel'
 import SchedulesPanel from '../components/SchedulesPanel'
+import DeviceSettingsPanel from '../components/DeviceSettingsPanel'
 import { AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 
 export default function DevicesPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user } = useAuth()
+  const { user, logout } = useAuth()
+  const [showProfileMenu, setShowProfileMenu] = useState(false)
+
+  useEffect(() => {
+    if (!showProfileMenu) return;
+    const close = () => setShowProfileMenu(false);
+    window.addEventListener('click', close);
+    return () => window.removeEventListener('click', close);
+  }, [showProfileMenu])
   
   // Parse query parameter to render appropriate view tab
   const searchParams = new URLSearchParams(location.search)
@@ -19,6 +28,18 @@ export default function DevicesPage() {
   const [activeDevice, setActiveDevice] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+
+  const sensorDevices = useMemo(() => {
+    return devices.filter(d => d.externalId && !d.externalId.startsWith('esp32s3-'))
+  }, [devices])
+
+  const s3Controllers = useMemo(() => {
+    return devices.filter(d => d.externalId && d.externalId.startsWith('esp32s3-'))
+  }, [devices])
+
+  const s3Controller = useMemo(() => {
+    return devices.find(d => d.externalId && d.externalId.startsWith('esp32s3-'))
+  }, [devices])
 
   // Selected device states
   const [latest, setLatest] = useState(null)
@@ -33,6 +54,10 @@ export default function DevicesPage() {
 
   const sseRef = useRef(null)
   const reconnectAttemptsRef = useRef(0)
+  const isRequestActiveRef = useRef(false)
+
+  // Track live status updates for all devices via SSE
+  const [deviceStatuses, setDeviceStatuses] = useState({})
 
   // Fetch all devices
   useEffect(() => {
@@ -44,7 +69,11 @@ export default function DevicesPage() {
         if (!ignore) {
           const devs = res.data || []
           setDevices(devs)
-          if (devs.length > 0) {
+          // Prefer sensor node (non-S3) as default activeDevice for telemetry display
+          const sensorNode = devs.find(d => d.externalId && !d.externalId.startsWith('esp32s3-'))
+          if (sensorNode) {
+            setActiveDevice(sensorNode)
+          } else if (devs.length > 0) {
             setActiveDevice(devs[0])
           }
         }
@@ -58,25 +87,64 @@ export default function DevicesPage() {
     return () => { ignore = true }
   }, [])
 
-  // Sync active device automation states to client-side opMode
+  // Auto-sync active device type depending on activeTab
   useEffect(() => {
-    if (!activeDevice) return
-    if (activeDevice.autoFanEnabled || activeDevice.autoPumpEnabled || activeDevice.autoLightEnabled) {
-      setOpMode('auto')
-    } else {
-      // Basic heuristic: if we have schedules, default to scheduled, else manual
-      setOpMode('manual')
+    if (devices.length === 0) return
+    const isTelemetryTab = ['overview', 'analytics', 'ai'].includes(activeTab)
+    const isControlTab = activeTab === 'control'
+
+    if (isTelemetryTab) {
+      const isCurrentSensor = activeDevice && activeDevice.externalId && !activeDevice.externalId.startsWith('esp32s3-')
+      if (!isCurrentSensor) {
+        const firstSensor = devices.find(d => d.externalId && !d.externalId.startsWith('esp32s3-'))
+        if (firstSensor) {
+          setActiveDevice(firstSensor)
+        }
+      }
+    } else if (isControlTab) {
+      const isCurrentS3 = activeDevice && activeDevice.externalId && activeDevice.externalId.startsWith('esp32s3-')
+      if (!isCurrentS3) {
+        const firstS3 = devices.find(d => d.externalId && d.externalId.startsWith('esp32s3-'))
+        if (firstS3) {
+          setActiveDevice(firstS3)
+        }
+      }
     }
-    if (activeDevice.lastFanState) setCmdFan(activeDevice.lastFanState)
-    if (activeDevice.lastLightState) setCmdLight(activeDevice.lastLightState)
-    if (activeDevice.lastPumpState) setCmdPump(activeDevice.lastPumpState)
-  }, [activeDevice])
+  }, [activeTab, devices, activeDevice?._id])
+
+  // Sync device automation states to client-side opMode
+  useEffect(() => {
+    if (isRequestActiveRef.current) return // Skip sync while a manual mode request is in flight
+    const syncDevice = s3Controller || activeDevice
+    if (!syncDevice) return
+    if (syncDevice.opMode) {
+      setOpMode(syncDevice.opMode)
+    } else {
+      if (syncDevice.autoFanEnabled || syncDevice.autoPumpEnabled || syncDevice.autoLightEnabled) {
+        setOpMode('auto')
+      } else {
+        setOpMode(prev => (prev === 'scheduled' ? 'scheduled' : 'manual'))
+      }
+    }
+    if (syncDevice.lastFanState) setCmdFan(syncDevice.lastFanState)
+    if (syncDevice.lastLightState) setCmdLight(syncDevice.lastLightState)
+    if (syncDevice.lastPumpState) setCmdPump(syncDevice.lastPumpState)
+  }, [
+    s3Controller?.lastFanState, s3Controller?.lastLightState, s3Controller?.lastPumpState,
+    s3Controller?.autoFanEnabled, s3Controller?.autoPumpEnabled, s3Controller?.autoLightEnabled,
+    s3Controller?.opMode,
+    activeDevice?.lastFanState, activeDevice?.lastLightState, activeDevice?.lastPumpState,
+    activeDevice?.autoFanEnabled, activeDevice?.autoPumpEnabled, activeDevice?.autoLightEnabled,
+    activeDevice?.opMode
+  ])
 
   // Load telemetry sensors data for the selected device
   const loadTelemetry = async (deviceId) => {
     try {
       const res = await api.get('/api/sensors', { params: { deviceId, limit: 30 } })
       const arr = res.data || []
+      // Guard: don't reset existing SSE data if DB returns empty
+      if (arr.length === 0) return
       const reversed = arr.slice().reverse()
       // format timestamps for chart labels
       const formatted = reversed.map(d => ({
@@ -91,7 +159,14 @@ export default function DevicesPage() {
     } catch (e) { }
   }
 
+  // Reset chart/metrics when switching to a different device
+  useEffect(() => {
+    setLatest(null)
+    setChartsData([])
+  }, [activeDevice?._id])
+
   // Load telemetry initially and check for updates
+  // Use activeDevice?._id (primitive) instead of full object to avoid re-running on status-only updates
   useEffect(() => {
     if (!activeDevice) return
     loadTelemetry(activeDevice._id)
@@ -104,7 +179,7 @@ export default function DevicesPage() {
     }, 8000)
 
     return () => clearInterval(interval)
-  }, [activeDevice, sseStatus])
+  }, [activeDevice?._id, sseStatus])
 
   // SSE Real-time telemetry receiver
   useEffect(() => {
@@ -136,38 +211,61 @@ export default function DevicesPage() {
           if (payload.relayLight) setCmdLight(payload.relayLight)
           if (payload.relayPump) setCmdPump(payload.relayPump)
           
-          setLatest({
-            timestamp: payload.timestamp || Date.now(),
-            temperature: payload.temperature,
-            humidity: payload.humidity,
-            soilMoisture: payload.soilMoisture ?? payload.soil_pct ?? 0,
-            lux: payload.lux,
-          })
+          const hasSensorData = payload.temperature !== undefined || 
+                                payload.humidity !== undefined || 
+                                payload.soilMoisture !== undefined || 
+                                payload.soil_pct !== undefined || 
+                                payload.lux !== undefined
 
-          setChartsData(prev => {
-            const next = [...prev]
-            const ts = payload.timestamp || Date.now()
-            const timeLabel = new Date(ts).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
-            if (!next.some(d => d.timestamp === ts)) {
-              next.push({
-                timestamp: ts,
-                timeLabel,
+          setLatest(prev => {
+            if (!prev) {
+              return {
+                timestamp: payload.timestamp || Date.now(),
                 temperature: payload.temperature,
                 humidity: payload.humidity,
                 soilMoisture: payload.soilMoisture ?? payload.soil_pct ?? 0,
-                lux: payload.lux
-              })
-              if (next.length > 50) next.splice(0, next.length - 50)
+                lux: payload.lux,
+              }
             }
-            return next
+            return {
+              ...prev,
+              timestamp: payload.timestamp || Date.now(),
+              temperature: payload.temperature !== undefined ? payload.temperature : prev.temperature,
+              humidity: payload.humidity !== undefined ? payload.humidity : prev.humidity,
+              soilMoisture: (payload.soilMoisture ?? payload.soil_pct) !== undefined ? (payload.soilMoisture ?? payload.soil_pct) : prev.soilMoisture,
+              lux: payload.lux !== undefined ? payload.lux : prev.lux,
+            }
           })
+
+          if (hasSensorData) {
+            setChartsData(prev => {
+              const next = [...prev]
+              const ts = payload.timestamp || Date.now()
+              const timeLabel = new Date(ts).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+              if (!next.some(d => d.timestamp === ts)) {
+                next.push({
+                  timestamp: ts,
+                  timeLabel,
+                  temperature: payload.temperature,
+                  humidity: payload.humidity,
+                  soilMoisture: payload.soilMoisture ?? payload.soil_pct ?? 0,
+                  lux: payload.lux
+                })
+                if (next.length > 50) next.splice(0, next.length - 50)
+              }
+              return next
+            })
+          }
         } catch { }
       })
 
       es.addEventListener('status', (evt) => {
         try {
           const s = JSON.parse(evt.data)
+          // Update both activeDevice and global deviceStatuses map
           setActiveDevice(prev => prev ? { ...prev, status: s.status } : prev)
+          setDevices(prev => prev.map(d => d.externalId === s.externalId ? { ...d, status: s.status } : d))
+          setDeviceStatuses(prev => ({ ...prev, [s.externalId]: s.status }))
         } catch { }
       })
     }
@@ -181,9 +279,62 @@ export default function DevicesPage() {
     }
   }, [activeDevice?.externalId])
 
+  // SSE watcher for all OTHER devices (not activeDevice) - tracks online/offline status
+  const otherSseRefs = useRef([])
+  useEffect(() => {
+    const token = localStorage.getItem('accessToken')
+    if (!token || devices.length === 0) return
+
+    // Close previous connections
+    otherSseRefs.current.forEach(es => { try { es.close() } catch (_) {} })
+    otherSseRefs.current = []
+
+    // Subscribe to devices that are NOT the activeDevice
+    const otherDevices = devices.filter(
+      d => d.externalId && d.externalId !== activeDevice?.externalId
+    )
+
+    otherDevices.forEach(dev => {
+      const url = `${import.meta.env.VITE_API_BASE_URL || 'https://api.duongle.io.vn'}/api/stream/devices/${dev.externalId}?token=${encodeURIComponent(token)}`
+      try {
+        const es = new EventSource(url)
+        es.addEventListener('status', (evt) => {
+          try {
+            const s = JSON.parse(evt.data)
+            setDevices(prev => prev.map(d => d.externalId === s.externalId ? { ...d, status: s.status } : d))
+            setDeviceStatuses(prev => ({ ...prev, [s.externalId]: s.status }))
+          } catch (_) {}
+        })
+        es.addEventListener('telemetry', (evt) => {
+          try {
+            const payload = JSON.parse(evt.data)
+            setDevices(prev => prev.map(d => {
+              if (d.externalId === dev.externalId) {
+                return {
+                  ...d,
+                  lastFanState: payload.relayFan || d.lastFanState,
+                  lastLightState: payload.relayLight || d.lastLightState,
+                  lastPumpState: payload.relayPump || d.lastPumpState,
+                }
+              }
+              return d
+            }))
+          } catch (_) {}
+        })
+        otherSseRefs.current.push(es)
+      } catch (_) {}
+    })
+
+    return () => {
+      otherSseRefs.current.forEach(es => { try { es.close() } catch (_) {} })
+      otherSseRefs.current = []
+    }
+  }, [devices.length, activeDevice?.externalId])
+
   // Helper to toggle manual relays
-  const toggleRelay = async (target, currentState) => {
-    if (!activeDevice) return
+  const toggleRelay = async (target, currentState, customDeviceId = null) => {
+    const id = customDeviceId || activeDevice?._id
+    if (!id) return
     const action = currentState === 'ON' ? 'OFF' : 'ON'
     
     // Optimistic UI updates
@@ -192,7 +343,7 @@ export default function DevicesPage() {
     if (target === 'fan') setCmdFan(action)
 
     try {
-      await api.post('/api/commands', { deviceId: activeDevice._id, target, action })
+      await api.post('/api/commands', { deviceId: id, target, action })
       // If we execute a manual toggle in AUTO mode, warn user that auto logic might override it shortly
       if (opMode === 'auto') {
         setOverrideNotice('Hệ thống đang ở chế độ TỰ ĐỘNG. Thiết bị sẽ tự điều chỉnh lại dựa trên ngưỡng cảm biến.')
@@ -207,25 +358,34 @@ export default function DevicesPage() {
   }
 
   // Handle changing operational modes
-  const handleModeChange = async (mode) => {
-    if (!activeDevice || modeChanging) return
-    setOpMode(mode)
+  const handleModeChange = async (mode, customDeviceId = null) => {
+    const id = customDeviceId || activeDevice?._id
+    if (!id || modeChanging) return
+    
+    const prevMode = opMode
+    setOpMode(mode) // Optimistic update
     setModeChanging(true)
+    isRequestActiveRef.current = true
     
     try {
       const isAuto = mode === 'auto'
       const payload = {
+        opMode: mode,
         autoFanEnabled: isAuto,
         autoPumpEnabled: isAuto,
         autoLightEnabled: isAuto,
       }
-      const res = await api.put(`/api/devices/${activeDevice._id}`, payload)
-      setActiveDevice(res.data)
+      const res = await api.put(`/api/devices/${id}`, payload)
+      setDevices(prev => prev.map(d => d._id === id ? res.data : d))
+      if (activeDevice && activeDevice._id === id) {
+        setActiveDevice(res.data)
+      }
     } catch (e) {
       // Revert if API fail
-      setOpMode(opMode)
+      setOpMode(prevMode)
     } finally {
       setModeChanging(false)
+      isRequestActiveRef.current = false
     }
   }
 
@@ -247,6 +407,18 @@ export default function DevicesPage() {
     }
     return '• TINYML LOGIC: HỆ THỐNG HOẠT ĐỘNG ỔN ĐỊNH'
   }, [latest])
+
+  const filteredSelectDevices = useMemo(() => {
+    const isTelemetryTab = ['overview', 'analytics', 'ai'].includes(activeTab)
+    const isControlTab = activeTab === 'control'
+    if (isTelemetryTab) {
+      return sensorDevices
+    }
+    if (isControlTab) {
+      return s3Controllers
+    }
+    return devices
+  }, [devices, sensorDevices, s3Controllers, activeTab])
 
   // AI Chat Bot state
   const [messages, setMessages] = useState([
@@ -322,7 +494,7 @@ export default function DevicesPage() {
   }
 
   // Handle empty state (No device added yet)
-  if (devices.length === 0) {
+  if (devices.length === 0 && activeTab !== 'device-settings') {
     return (
       <div className="page-enter">
         <div className="dashboard-header">
@@ -368,45 +540,132 @@ export default function DevicesPage() {
         </div>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-          {devices.length > 1 && (
+          {filteredSelectDevices.length > 1 && (
             <select 
               value={activeDevice?._id} 
               onChange={(e) => setActiveDevice(devices.find(d => d._id === e.target.value))}
               style={{ width: 'auto', padding: '6px 12px', fontSize: 13, borderRadius: 10, background: '#121620' }}
             >
-              {devices.map(d => (
+              {filteredSelectDevices.map(d => (
                 <option key={d._id} value={d._id}>{d.name}</option>
               ))}
             </select>
           )}
+
+          <Link 
+            to="/devices/new" 
+            className="btn btn-primary" 
+            style={{ 
+              padding: '6px 12px', 
+              fontSize: 13, 
+              borderRadius: 10, 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 6,
+              textDecoration: 'none'
+            }}
+          >
+            ➕ Thêm thiết bị
+          </Link>
           
-          <div className="user-profile">
+          <div 
+            className="user-profile" 
+            style={{ position: 'relative', cursor: 'pointer' }}
+            onClick={(e) => { e.stopPropagation(); setShowProfileMenu(!showProfileMenu); }}
+          >
             <div className="user-profile-info">
               <div className="user-profile-name">{user?.name || user?.username || user?.email || 'User'}</div>
             </div>
             <div className="user-avatar">{userInitials}</div>
+
+            {showProfileMenu && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                right: 0,
+                marginTop: 8,
+                background: '#0f121a',
+                border: '1px solid var(--border)',
+                borderRadius: 12,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                padding: '8px',
+                zIndex: 1000,
+                minWidth: 150,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 4
+              }}>
+                <Link to="/devices" style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  color: 'var(--text-dim)',
+                  transition: 'background 0.2s',
+                }} className="profile-menu-item">
+                  <span>🖥️</span> Trang thiết bị
+                </Link>
+                <Link to="/settings" style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  color: 'var(--text-dim)',
+                  transition: 'background 0.2s',
+                }} className="profile-menu-item">
+                  <span>⚙️</span> Cài đặt
+                </Link>
+                <div onClick={logout} style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  color: '#ef5350',
+                  transition: 'background 0.2s',
+                  cursor: 'pointer'
+                }} className="profile-menu-item">
+                  <span>🚪</span> Đăng xuất
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
       {/* Render selected view tab */}
+      {/* Render selected view tab */}
       {activeTab === 'overview' && (
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           
-          {/* TinyML Banner */}
-          <div className="tinyml-banner">
-            {tinymlText}
+          {/* TinyML Banner & Status Label Row */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+            <div className="tinyml-banner" style={{ marginBottom: 0 }}>
+              {tinymlText}
+            </div>
+            
+            {activeDevice && (
+              <span className={`live-indicator ${(deviceStatuses[activeDevice.externalId] || activeDevice.status) === 'online' ? 'connected' : 'disconnected'}`} style={{ fontSize: 12, padding: '6px 14px', borderRadius: 20 }}>
+                <span className="live-dot" />
+                Thiết bị: <strong style={{ marginLeft: 4 }}>{(deviceStatuses[activeDevice.externalId] || activeDevice.status) === 'online' ? 'Online' : 'Offline'}</strong>
+              </span>
+            )}
           </div>
 
           {/* Metric cards grid */}
-          <div className="metrics-grid">
+          <div className="metrics-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
             <div className="metric-card-new">
               <div className="metric-card-header">
                 <span className="metric-card-title">Nhiệt độ</span>
                 <span className="metric-card-icon" style={{ color: '#ff7043' }}>🌡️</span>
               </div>
               <div className="metric-card-value">
-                {latest ? latest.temperature : '26.5'}
+                {latest ? (typeof latest.temperature === 'number' ? latest.temperature.toFixed(2) : latest.temperature) : '26.50'}
                 <span className="metric-card-unit">°C</span>
               </div>
             </div>
@@ -417,7 +676,7 @@ export default function DevicesPage() {
                 <span className="metric-card-icon" style={{ color: '#29b6f6' }}>💧</span>
               </div>
               <div className="metric-card-value">
-                {latest ? latest.humidity : '64'}
+                {latest ? (typeof latest.humidity === 'number' ? latest.humidity.toFixed(2) : latest.humidity) : '64.00'}
                 <span className="metric-card-unit">%</span>
               </div>
             </div>
@@ -446,27 +705,10 @@ export default function DevicesPage() {
             </div>
           </div>
 
-          {/* Device matrix notices */}
-          {overrideNotice && (
-            <div style={{
-              background: 'rgba(255, 167, 38, 0.1)',
-              border: '1px solid rgba(255, 167, 38, 0.2)',
-              color: '#ffa726',
-              padding: '10px 16px',
-              borderRadius: 12,
-              fontSize: 12,
-              fontWeight: 600,
-              marginBottom: 16,
-            }}>
-              ⚠️ {overrideNotice}
-            </div>
-          )}
-
-          {/* Split grid: Chart & Matrix */}
+          {/* Split grid for Telemetry Chart and Device Matrix */}
           <div className="dashboard-grid">
-            
-            {/* Left Column: Line Chart */}
-            <div className="card" style={{ padding: 20 }}>
+            {/* Left Column: Area Chart card */}
+            <div className="card" style={{ padding: 20, marginBottom: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <h3 style={{ fontSize: 14, fontWeight: 700, letterSpacing: '0.3px', textTransform: 'uppercase', color: 'var(--text-dim)' }}>
@@ -532,116 +774,439 @@ export default function DevicesPage() {
             </div>
 
             {/* Right Column: Device Matrix Switches */}
-            <div className="card" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div>
-                <h3 style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
-                  Device Matrix
-                </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {overrideNotice && (
+                <div style={{
+                  background: 'rgba(255, 167, 38, 0.1)',
+                  border: '1px solid rgba(255, 167, 38, 0.2)',
+                  color: '#ffa726',
+                  padding: '10px 16px',
+                  borderRadius: 12,
+                  fontSize: 12,
+                  fontWeight: 600,
+                }}>
+                  ⚠️ {overrideNotice}
+                </div>
+              )}
+
+              <div className="card" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div>
+                  <h3 style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+                    Device Matrix
+                  </h3>
+                </div>
+
+                {/* Toggles list */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div className="switch-control">
+                    <div className="switch-control-left">
+                      <div className="switch-control-icon">💦</div>
+                      <div className="switch-control-info">
+                        <span className="switch-control-name">Máy bơm</span>
+                        <span className="switch-control-status">{(s3Controller?.lastPumpState || 'OFF') === 'ON' ? 'RUNNING' : 'STANDBY'}</span>
+                      </div>
+                    </div>
+                    {opMode === 'manual' ? (
+                      <label className="ios-switch">
+                        <input 
+                          type="checkbox" 
+                          checked={cmdPump === 'ON'} 
+                          onChange={() => toggleRelay('pump', cmdPump, s3Controller?._id)} 
+                          disabled={!s3Controller}
+                        />
+                        <span className="ios-slider"></span>
+                      </label>
+                    ) : (
+                      <span style={{ 
+                        fontSize: 11, fontWeight: 700,
+                        color: (s3Controller?.lastPumpState || 'OFF') === 'ON' ? '#10b981' : 'var(--text-muted)',
+                        background: (s3Controller?.lastPumpState || 'OFF') === 'ON' ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.02)',
+                        padding: '3px 8px', borderRadius: 6,
+                        border: `1px solid ${(s3Controller?.lastPumpState || 'OFF') === 'ON' ? 'rgba(16,185,129,0.2)' : 'var(--border)'}`
+                      }}>
+                        {(s3Controller?.lastPumpState || 'OFF') === 'ON' ? 'RUNNING' : 'STANDBY'}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="switch-control">
+                    <div className="switch-control-left">
+                      <div className="switch-control-icon">💡</div>
+                      <div className="switch-control-info">
+                        <span className="switch-control-name">Hệ thống đèn</span>
+                        <span className="switch-control-status">{(s3Controller?.lastLightState || 'OFF') === 'ON' ? 'RUNNING' : 'STANDBY'}</span>
+                      </div>
+                    </div>
+                    {opMode === 'manual' ? (
+                      <label className="ios-switch">
+                        <input 
+                          type="checkbox" 
+                          checked={cmdLight === 'ON'} 
+                          onChange={() => toggleRelay('light', cmdLight, s3Controller?._id)} 
+                          disabled={!s3Controller}
+                        />
+                        <span className="ios-slider"></span>
+                      </label>
+                    ) : (
+                      <span style={{ 
+                        fontSize: 11, fontWeight: 700,
+                        color: (s3Controller?.lastLightState || 'OFF') === 'ON' ? '#ffa726' : 'var(--text-muted)',
+                        background: (s3Controller?.lastLightState || 'OFF') === 'ON' ? 'rgba(255,167,38,0.1)' : 'rgba(255,255,255,0.02)',
+                        padding: '3px 8px', borderRadius: 6,
+                        border: `1px solid ${(s3Controller?.lastLightState || 'OFF') === 'ON' ? 'rgba(255,167,38,0.2)' : 'var(--border)'}`
+                      }}>
+                        {(s3Controller?.lastLightState || 'OFF') === 'ON' ? 'RUNNING' : 'STANDBY'}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="switch-control">
+                    <div className="switch-control-left">
+                      <div className="switch-control-icon">🌀</div>
+                      <div className="switch-control-info">
+                        <span className="switch-control-name">Quạt thông gió</span>
+                        <span className="switch-control-status">{(s3Controller?.lastFanState || 'OFF') === 'ON' ? 'RUNNING' : 'STANDBY'}</span>
+                      </div>
+                    </div>
+                    {opMode === 'manual' ? (
+                      <label className="ios-switch">
+                        <input 
+                          type="checkbox" 
+                          checked={cmdFan === 'ON'} 
+                          onChange={() => toggleRelay('fan', cmdFan, s3Controller?._id)} 
+                          disabled={!s3Controller}
+                        />
+                        <span className="ios-slider"></span>
+                      </label>
+                    ) : (
+                      <span style={{ 
+                        fontSize: 11, fontWeight: 700,
+                        color: (s3Controller?.lastFanState || 'OFF') === 'ON' ? '#29b6f6' : 'var(--text-muted)',
+                        background: (s3Controller?.lastFanState || 'OFF') === 'ON' ? 'rgba(41,182,246,0.1)' : 'rgba(255,255,255,0.02)',
+                        padding: '3px 8px', borderRadius: 6,
+                        border: `1px solid ${(s3Controller?.lastFanState || 'OFF') === 'ON' ? 'rgba(41,182,246,0.2)' : 'var(--border)'}`
+                      }}>
+                        {(s3Controller?.lastFanState || 'OFF') === 'ON' ? 'RUNNING' : 'STANDBY'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Operational mode buttons */}
+                <div style={{ marginTop: 4 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8, letterSpacing: '0.5px' }}>
+                    ⚙️ Operational Mode
+                  </div>
+                  <div className="mode-selector">
+                    <button 
+                      className={`mode-btn ${opMode === 'manual' ? 'active' : ''}`}
+                      onClick={() => handleModeChange('manual', s3Controller?._id)}
+                      disabled={modeChanging || !s3Controller}
+                    >
+                      Manual
+                    </button>
+                    <button 
+                      className={`mode-btn ${opMode === 'auto' ? 'active' : ''}`}
+                      onClick={() => handleModeChange('auto', s3Controller?._id)}
+                      disabled={modeChanging || !s3Controller}
+                    >
+                      Auto
+                    </button>
+                    <button 
+                      className={`mode-btn ${opMode === 'scheduled' ? 'active' : ''}`}
+                      onClick={() => handleModeChange('scheduled', s3Controller?._id)}
+                      disabled={modeChanging || !s3Controller}
+                    >
+                      Scheduled
+                    </button>
+                  </div>
+                </div>
               </div>
 
-              {/* Toggles list */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div className="switch-control">
-                  <div className="switch-control-left">
-                    <div className="switch-control-icon">💦</div>
-                    <div className="switch-control-info">
-                      <span className="switch-control-name">Máy bơm</span>
-                      <span className="switch-control-status">{cmdPump === 'ON' ? 'RUNNING' : 'STANDBY'}</span>
+              {/* Safety Windows Configuration Panel - only if opMode is 'scheduled' */}
+              {opMode === 'scheduled' && s3Controller && (
+                <div className="card" style={{ padding: 20 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>⏰ Khung giờ an toàn</h4>
+                      <div className="small muted" style={{ marginTop: 2 }}>Khoảng thời gian AI được phép bật máy bơm</div>
                     </div>
                   </div>
-                  <label className="ios-switch">
-                    <input 
-                      type="checkbox" 
-                      checked={cmdPump === 'ON'} 
-                      onChange={() => toggleRelay('pump', cmdPump)} 
-                    />
-                    <span className="ios-slider"></span>
-                  </label>
-                </div>
 
-                <div className="switch-control">
-                  <div className="switch-control-left">
-                    <div className="switch-control-icon">💡</div>
-                    <div className="switch-control-info">
-                      <span className="switch-control-name">Hệ thống đèn</span>
-                      <span className="switch-control-status">{cmdLight === 'ON' ? 'RUNNING' : 'STANDBY'}</span>
-                    </div>
+                  {/* List of safety windows */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+                    {!s3Controller.safetyWindows || s3Controller.safetyWindows.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '16px 0', color: 'var(--text-muted)', fontSize: 13, background: 'rgba(0,0,0,0.15)', borderRadius: 10, border: '1px dashed var(--border)' }}>
+                        Chưa thiết lập khung giờ nào (Bơm đang bị khóa hoàn toàn)
+                      </div>
+                    ) : (
+                      s3Controller.safetyWindows.map((w, idx) => (
+                        <div key={idx} style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          padding: '10px 14px',
+                          background: 'rgba(16, 185, 129, 0.05)',
+                          border: '1px solid rgba(16, 185, 129, 0.15)',
+                          borderRadius: 10,
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 16 }}>⏰</span>
+                            <span style={{ fontWeight: 700, fontSize: 13, fontFamily: 'DM Mono, monospace', color: '#81c784' }}>
+                              {w.start} - {w.end}
+                            </span>
+                          </div>
+                          <button
+                            onClick={async () => {
+                              const updatedWindows = s3Controller.safetyWindows.filter((_, i) => i !== idx);
+                              try {
+                                const res = await api.put(`/api/devices/${s3Controller._id}`, { safetyWindows: updatedWindows });
+                                setDevices(prev => prev.map(d => d._id === s3Controller._id ? res.data : d));
+                              } catch (e) {
+                                alert('Không thể xóa khung giờ an toàn');
+                              }
+                            }}
+                            className="btn"
+                            style={{
+                              padding: '4px 8px', fontSize: 11,
+                              background: 'rgba(239,83,80,0.1)',
+                              borderColor: 'rgba(239,83,80,0.25)',
+                              color: '#ef9a9a',
+                              borderRadius: 6
+                            }}
+                          >
+                            Xóa
+                          </button>
+                        </div>
+                      ))
+                    )}
                   </div>
-                  <label className="ios-switch">
-                    <input 
-                      type="checkbox" 
-                      checked={cmdLight === 'ON'} 
-                      onChange={() => toggleRelay('light', cmdLight)} 
-                    />
-                    <span className="ios-slider"></span>
-                  </label>
-                </div>
 
-                <div className="switch-control">
-                  <div className="switch-control-left">
-                    <div className="switch-control-icon">🌀</div>
-                    <div className="switch-control-info">
-                      <span className="switch-control-name">Quạt thông gió</span>
-                      <span className="switch-control-status">{cmdFan === 'ON' ? 'RUNNING' : 'STANDBY'}</span>
+                  {/* Add form */}
+                  <form onSubmit={async (e) => {
+                    e.preventDefault();
+                    const startVal = e.target.start.value;
+                    const endVal = e.target.end.value;
+                    if (!startVal || !endVal) return;
+                    const updatedWindows = [...(s3Controller.safetyWindows || []), { start: startVal, end: endVal }];
+                    try {
+                      const res = await api.put(`/api/devices/${s3Controller._id}`, { safetyWindows: updatedWindows });
+                      setDevices(prev => prev.map(d => d._id === s3Controller._id ? res.data : d));
+                      e.target.reset();
+                    } catch (e) {
+                      alert('Không thể thêm khung giờ an toàn');
+                    }
+                  }} style={{
+                    background: 'rgba(0,0,0,0.2)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 10,
+                    padding: 12,
+                  }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>Thêm khung giờ cho phép</div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <input type="time" name="start" required style={{ padding: '6px 8px', fontSize: 12, borderRadius: 6, background: '#0b0d13', border: '1px solid var(--border)', color: '#fff' }} />
+                      <span className="muted" style={{ fontSize: 12 }}>đến</span>
+                      <input type="time" name="end" required style={{ padding: '6px 8px', fontSize: 12, borderRadius: 6, background: '#0b0d13', border: '1px solid var(--border)', color: '#fff' }} />
+                      <button type="submit" className="btn btn-primary" style={{ padding: '6px 12px', fontSize: 12, borderRadius: 6 }}>
+                        + Thêm
+                      </button>
                     </div>
-                  </div>
-                  <label className="ios-switch">
-                    <input 
-                      type="checkbox" 
-                      checked={cmdFan === 'ON'} 
-                      onChange={() => toggleRelay('fan', cmdFan)} 
-                    />
-                    <span className="ios-slider"></span>
-                  </label>
+                  </form>
                 </div>
-              </div>
-
-              {/* Operational mode buttons */}
-              <div style={{ marginTop: 4 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8, letterSpacing: '0.5px' }}>
-                  ⚙️ Operational Mode
-                </div>
-                <div className="mode-selector">
-                  <button 
-                    className={`mode-btn ${opMode === 'manual' ? 'active' : ''}`}
-                    onClick={() => handleModeChange('manual')}
-                    disabled={modeChanging}
-                  >
-                    Manual
-                  </button>
-                  <button 
-                    className={`mode-btn ${opMode === 'auto' ? 'active' : ''}`}
-                    onClick={() => handleModeChange('auto')}
-                    disabled={modeChanging}
-                  >
-                    Auto
-                  </button>
-                  <button 
-                    className={`mode-btn ${opMode === 'scheduled' ? 'active' : ''}`}
-                    onClick={() => handleModeChange('scheduled')}
-                    disabled={modeChanging}
-                  >
-                    Scheduled
-                  </button>
-                </div>
-              </div>
-
-              {/* Expected Consumption Info Banner */}
-              <div className="water-info-banner" style={{ marginTop: 'auto' }}>
-                <span className="water-info-icon">ℹ️</span>
-                <span>Dự kiến tiêu thụ: 20L nước sạch dựa trên chu kỳ vận hành</span>
-              </div>
+              )}
             </div>
-
           </div>
         </div>
       )}
 
       {activeTab === 'control' && (
-        <div style={{ display: 'grid', gap: 20 }}>
-          <div className="grid grid-2" style={{ gap: 20, gridTemplateColumns: '1.2fr 1fr' }}>
-            <AutomationPanel device={activeDevice} onSaved={(d) => { setActiveDevice(d) }} />
-            <SchedulesPanel deviceId={activeDevice._id} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          
+          {/* S3 Controllers Status Row */}
+          {s3Controllers.length > 0 && (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)', marginBottom: 10 }}>
+                🎛️ Trạng thái bộ điều khiển S3 ({s3Controllers.length})
+              </div>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                {s3Controllers.map(dev => {
+                  const liveStatus = deviceStatuses[dev.externalId] || dev.status
+                  const isOnlineDev = liveStatus === 'online'
+                  return (
+                    <div
+                      key={dev._id}
+                      onClick={() => setActiveDevice(dev)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '10px 16px',
+                        borderRadius: 12,
+                        background: activeDevice?._id === dev._id ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255,255,255,0.03)',
+                        border: `1px solid ${activeDevice?._id === dev._id ? 'rgba(16, 185, 129, 0.4)' : 'var(--border)'}`,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        minWidth: 200,
+                      }}
+                    >
+                      <div style={{
+                        width: 8, height: 8, borderRadius: '50%',
+                        background: isOnlineDev ? '#10b981' : '#ef5350',
+                        boxShadow: isOnlineDev ? '0 0 6px rgba(16,185,129,0.6)' : '0 0 6px rgba(239,83,80,0.4)',
+                        flexShrink: 0,
+                      }} />
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          🎛️ {dev.name}
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'DM Mono, monospace' }}>
+                          S3 Controller · {liveStatus}
+                        </div>
+                      </div>
+                      <span className={`badge ${isOnlineDev ? 'ok' : 'err'}`} style={{ fontSize: 9, marginLeft: 'auto', flexShrink: 0 }}>
+                        {liveStatus}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Control Grid */}
+          <div className="dashboard-grid">
+            
+            {/* Left Column: Automation and Schedules */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {activeDevice ? (
+                <>
+                  <AutomationPanel device={activeDevice} onSaved={(d) => { setActiveDevice(d) }} />
+                  <SchedulesPanel deviceId={activeDevice._id} />
+                </>
+              ) : (
+                <div className="card" style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>
+                  Vui lòng thêm hoặc chọn thiết bị S3 để thiết lập tự động hoá và hẹn giờ.
+                </div>
+              )}
+            </div>
+
+            {/* Right Column: Device Matrix Switches */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {overrideNotice && (
+                <div style={{
+                  background: 'rgba(255, 167, 38, 0.1)',
+                  border: '1px solid rgba(255, 167, 38, 0.2)',
+                  color: '#ffa726',
+                  padding: '10px 16px',
+                  borderRadius: 12,
+                  fontSize: 12,
+                  fontWeight: 600,
+                }}>
+                  ⚠️ {overrideNotice}
+                </div>
+              )}
+
+              <div className="card" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div>
+                  <h3 style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+                    Device Matrix
+                  </h3>
+                </div>
+
+                {/* Toggles list */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div className="switch-control">
+                    <div className="switch-control-left">
+                      <div className="switch-control-icon">💦</div>
+                      <div className="switch-control-info">
+                        <span className="switch-control-name">Máy bơm</span>
+                        <span className="switch-control-status">{cmdPump === 'ON' ? 'RUNNING' : 'STANDBY'}</span>
+                      </div>
+                    </div>
+                    <label className="ios-switch">
+                      <input 
+                        type="checkbox" 
+                        checked={cmdPump === 'ON'} 
+                        onChange={() => toggleRelay('pump', cmdPump, s3Controller?._id)} 
+                        disabled={!s3Controller}
+                      />
+                      <span className="ios-slider"></span>
+                    </label>
+                  </div>
+
+                  <div className="switch-control">
+                    <div className="switch-control-left">
+                      <div className="switch-control-icon">💡</div>
+                      <div className="switch-control-info">
+                        <span className="switch-control-name">Hệ thống đèn</span>
+                        <span className="switch-control-status">{cmdLight === 'ON' ? 'RUNNING' : 'STANDBY'}</span>
+                      </div>
+                    </div>
+                    <label className="ios-switch">
+                      <input 
+                        type="checkbox" 
+                        checked={cmdLight === 'ON'} 
+                        onChange={() => toggleRelay('light', cmdLight, s3Controller?._id)} 
+                        disabled={!s3Controller}
+                      />
+                      <span className="ios-slider"></span>
+                    </label>
+                  </div>
+
+                  <div className="switch-control">
+                    <div className="switch-control-left">
+                      <div className="switch-control-icon">🌀</div>
+                      <div className="switch-control-info">
+                        <span className="switch-control-name">Quạt thông gió</span>
+                        <span className="switch-control-status">{cmdFan === 'ON' ? 'RUNNING' : 'STANDBY'}</span>
+                      </div>
+                    </div>
+                    <label className="ios-switch">
+                      <input 
+                        type="checkbox" 
+                        checked={cmdFan === 'ON'} 
+                        onChange={() => toggleRelay('fan', cmdFan, s3Controller?._id)} 
+                        disabled={!s3Controller}
+                      />
+                      <span className="ios-slider"></span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Operational mode buttons */}
+                <div style={{ marginTop: 4 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8, letterSpacing: '0.5px' }}>
+                    ⚙️ Operational Mode
+                  </div>
+                  <div className="mode-selector">
+                    <button 
+                      className={`mode-btn ${opMode === 'manual' ? 'active' : ''}`}
+                      onClick={() => handleModeChange('manual', s3Controller?._id)}
+                      disabled={modeChanging || !s3Controller}
+                    >
+                      Manual
+                    </button>
+                    <button 
+                      className={`mode-btn ${opMode === 'auto' ? 'active' : ''}`}
+                      onClick={() => handleModeChange('auto', s3Controller?._id)}
+                      disabled={modeChanging || !s3Controller}
+                    >
+                      Auto
+                    </button>
+                    <button 
+                      className={`mode-btn ${opMode === 'scheduled' ? 'active' : ''}`}
+                      onClick={() => handleModeChange('scheduled', s3Controller?._id)}
+                      disabled={modeChanging || !s3Controller}
+                    >
+                      Scheduled
+                    </button>
+                  </div>
+                </div>
+
+                {/* Expected Consumption Info Banner */}
+                <div className="water-info-banner" style={{ marginTop: 'auto' }}>
+                  <span className="water-info-icon">ℹ️</span>
+                  <span>Dự kiến tiêu thụ: 20L nước sạch dựa trên chu kỳ vận hành</span>
+                </div>
+              </div>
+            </div>
+            
           </div>
         </div>
       )}
@@ -880,6 +1445,15 @@ export default function DevicesPage() {
             </button>
           </form>
         </div>
+      )}
+
+      {activeTab === 'device-settings' && (
+        <DeviceSettingsPanel 
+          devices={devices} 
+          setDevices={setDevices} 
+          activeDevice={activeDevice} 
+          setActiveDevice={setActiveDevice} 
+        />
       )}
     </div>
   )
