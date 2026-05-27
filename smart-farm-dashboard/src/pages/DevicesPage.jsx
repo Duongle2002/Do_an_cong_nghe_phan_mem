@@ -19,7 +19,7 @@ export default function DevicesPage() {
     window.addEventListener('click', close);
     return () => window.removeEventListener('click', close);
   }, [showProfileMenu])
-  
+
   // Parse query parameter to render appropriate view tab
   const searchParams = new URLSearchParams(location.search)
   const activeTab = searchParams.get('tab') || 'overview'
@@ -51,6 +51,9 @@ export default function DevicesPage() {
   const [opMode, setOpMode] = useState('auto') // 'manual' | 'auto' | 'scheduled'
   const [modeChanging, setModeChanging] = useState(false)
   const [overrideNotice, setOverrideNotice] = useState('')
+  const [generatingReport, setGeneratingReport] = useState(false)
+  const [aiReportText, setAiReportText] = useState('')
+  const [schedules, setSchedules] = useState([])
 
   const sseRef = useRef(null)
   const reconnectAttemptsRef = useRef(0)
@@ -170,7 +173,7 @@ export default function DevicesPage() {
   useEffect(() => {
     if (!activeDevice) return
     loadTelemetry(activeDevice._id)
-    
+
     // Poll telemetry data when SSE is disconnected
     const interval = setInterval(() => {
       if (sseStatus !== 'connected') {
@@ -192,10 +195,10 @@ export default function DevicesPage() {
       const url = `${import.meta.env.VITE_API_BASE_URL || 'https://api.duongle.io.vn'}/api/stream/devices/${activeDevice.externalId}?token=${encodeURIComponent(token)}`
       const es = new EventSource(url)
       sseRef.current = es
-      
-      es.onopen = () => { 
+
+      es.onopen = () => {
         reconnectAttemptsRef.current = 0
-        setSseStatus('connected') 
+        setSseStatus('connected')
       }
       es.onerror = () => {
         setSseStatus('error')
@@ -203,19 +206,19 @@ export default function DevicesPage() {
         const delay = Math.min(30000, Math.pow(2, ++reconnectAttemptsRef.current) * 1000)
         setTimeout(connect, delay)
       }
-      
+
       es.addEventListener('telemetry', (evt) => {
         try {
           const payload = JSON.parse(evt.data)
           if (payload.relayFan) setCmdFan(payload.relayFan)
           if (payload.relayLight) setCmdLight(payload.relayLight)
           if (payload.relayPump) setCmdPump(payload.relayPump)
-          
-          const hasSensorData = payload.temperature !== undefined || 
-                                payload.humidity !== undefined || 
-                                payload.soilMoisture !== undefined || 
-                                payload.soil_pct !== undefined || 
-                                payload.lux !== undefined
+
+          const hasSensorData = payload.temperature !== undefined ||
+            payload.humidity !== undefined ||
+            payload.soilMoisture !== undefined ||
+            payload.soil_pct !== undefined ||
+            payload.lux !== undefined
 
           setLatest(prev => {
             if (!prev) {
@@ -269,7 +272,7 @@ export default function DevicesPage() {
         } catch { }
       })
     }
-    
+
     connect()
     return () => {
       if (sseRef.current) {
@@ -286,7 +289,7 @@ export default function DevicesPage() {
     if (!token || devices.length === 0) return
 
     // Close previous connections
-    otherSseRefs.current.forEach(es => { try { es.close() } catch (_) {} })
+    otherSseRefs.current.forEach(es => { try { es.close() } catch (_) { } })
     otherSseRefs.current = []
 
     // Subscribe to devices that are NOT the activeDevice
@@ -303,7 +306,7 @@ export default function DevicesPage() {
             const s = JSON.parse(evt.data)
             setDevices(prev => prev.map(d => d.externalId === s.externalId ? { ...d, status: s.status } : d))
             setDeviceStatuses(prev => ({ ...prev, [s.externalId]: s.status }))
-          } catch (_) {}
+          } catch (_) { }
         })
         es.addEventListener('telemetry', (evt) => {
           try {
@@ -319,14 +322,14 @@ export default function DevicesPage() {
               }
               return d
             }))
-          } catch (_) {}
+          } catch (_) { }
         })
         otherSseRefs.current.push(es)
-      } catch (_) {}
+      } catch (_) { }
     })
 
     return () => {
-      otherSseRefs.current.forEach(es => { try { es.close() } catch (_) {} })
+      otherSseRefs.current.forEach(es => { try { es.close() } catch (_) { } })
       otherSseRefs.current = []
     }
   }, [devices.length, activeDevice?.externalId])
@@ -336,7 +339,7 @@ export default function DevicesPage() {
     const id = customDeviceId || activeDevice?._id
     if (!id) return
     const action = currentState === 'ON' ? 'OFF' : 'ON'
-    
+
     // Optimistic UI updates
     if (target === 'pump') setCmdPump(action)
     if (target === 'light') setCmdLight(action)
@@ -361,12 +364,12 @@ export default function DevicesPage() {
   const handleModeChange = async (mode, customDeviceId = null) => {
     const id = customDeviceId || activeDevice?._id
     if (!id || modeChanging) return
-    
+
     const prevMode = opMode
     setOpMode(mode) // Optimistic update
     setModeChanging(true)
     isRequestActiveRef.current = true
-    
+
     try {
       const isAuto = mode === 'auto'
       const payload = {
@@ -392,7 +395,12 @@ export default function DevicesPage() {
   // Dynamic user initials avatar
   const userInitials = useMemo(() => {
     const displayName = user?.name || user?.username || user?.email || 'User'
-    const parts = displayName.split(' ')
+    const parts = displayName.trim().split(/\s+/)
+    if (parts.length >= 2) {
+      const last = parts[parts.length - 1]
+      const prev = parts[parts.length - 2]
+      return ((prev ? prev[0] : '') + (last ? last[0] : '')).toUpperCase()
+    }
     return parts.map(p => p ? p[0] : '').join('').toUpperCase().slice(0, 2)
   }, [user])
 
@@ -433,7 +441,7 @@ export default function DevicesPage() {
   const handleSendChat = (e) => {
     e.preventDefault()
     if (!chatInput.trim() || isTyping) return
-    
+
     const userMsg = chatInput.trim()
     setMessages(prev => [...prev, { sender: 'user', text: userMsg }])
     setChatInput('')
@@ -441,30 +449,45 @@ export default function DevicesPage() {
 
     // Simulate AI response based on real-time data
     setTimeout(() => {
-      let aiResponse = 'Tôi đã tiếp nhận yêu cầu của bạn. Tôi khuyên bạn nên duy trì chế độ tự động để bảo vệ trang trại cây trồng.'
-      
+      let aiResponse = 'Tôi chưa hiểu câu hỏi của bạn lắm. Bạn có thể hỏi tôi về nhiệt độ, độ ẩm đất, thiết bị bơm, hoặc gõ "trạng thái" để tôi báo cáo tổng quan nhé!'
+
       const soil = latest?.soilMoisture ?? 50
       const temp = latest?.temperature ?? 26.5
       const lowerMsg = userMsg.toLowerCase()
-      
+      const words = lowerMsg.trim().split(/\s+/)
+
+      const greetingKeywords = ['hello', 'hi', 'hé', 'he', 'alo', 'hey', 'nhô']
+      const isGreeting = lowerMsg.includes('chào') || words.some(w => greetingKeywords.includes(w))
+
       if (lowerMsg.includes('nước') || lowerMsg.includes('bơm') || lowerMsg.includes('tưới')) {
-        aiResponse = `Độ ẩm đất hiện tại đang ở mức ${soil}%. ${
-          soil < 55 
-            ? 'Theo thuật toán TinyML dự đoán nhu cầu nước đang ở mức cao. Bạn nên kích hoạt máy bơm hoặc duy trì chế độ TỰ ĐỘNG để hệ thống tự tưới.' 
+        aiResponse = `Độ ẩm đất hiện tại đang ở mức ${soil}%. ${soil < 55
+            ? 'Theo thuật toán TinyML dự đoán nhu cầu nước đang ở mức cao. Bạn nên kích hoạt máy bơm hoặc duy trì chế độ TỰ ĐỘNG để hệ thống tự tưới.'
             : 'Độ ẩm đất hiện đang ổn định trên 55%. Chưa cần tưới nước thêm lúc này.'
-        }`
+          }`
       } else if (lowerMsg.includes('nhiệt độ') || lowerMsg.includes('nóng') || lowerMsg.includes('quạt')) {
-        aiResponse = `Nhiệt độ hiện tại trong nhà kính đo được là ${temp}°C. ${
-          temp > 28 
-            ? 'Mức nhiệt khá cao, quạt thông gió nên được bật để đối lưu không khí.' 
+        aiResponse = `Nhiệt độ hiện tại trong nhà kính đo được là ${temp}°C. ${temp > 28
+            ? 'Mức nhiệt khá cao, quạt thông gió nên được bật để đối lưu không khí.'
             : 'Mức nhiệt này nằm trong ngưỡng phát triển tốt của cây.'
-        }`
+          }`
+      } else if (lowerMsg.includes('chuyện gì') || lowerMsg.includes('có chuyện gì') || lowerMsg.includes('có gì') || lowerMsg.includes('bị sao')) {
+        aiResponse = `Hệ thống nhà kính của bạn vẫn đang hoạt động bình thường, không có sự cố gì xảy ra cả. Nhiệt độ hiện tại là ${temp}°C và độ ẩm đất là ${soil}%.`
       } else if (lowerMsg.includes('trạng thái') || lowerMsg.includes('ổn định') || lowerMsg.includes('sao')) {
         aiResponse = `Hệ thống GreenGuard AI báo cáo: Nhiệt độ ${temp}°C, Độ ẩm đất ${soil}%, Độ ẩm không khí ${latest?.humidity ?? 64}%, Ánh sáng ${latest?.lux ?? 6264} lux. Mọi thông số hoạt động ở mức lý tưởng.`
+      } else if (isGreeting) {
+        aiResponse = `Xin chào! Tôi là trợ lý GreenGuard AI. Tôi có thể giúp gì cho bạn hôm nay? Bạn có thể hỏi tôi về trạng thái nhà kính, nhiệt độ, độ ẩm hoặc hệ thống tưới nước nhé.`
       }
 
       setMessages(prev => [...prev, { sender: 'ai', text: aiResponse }])
       setIsTyping(false)
+    }, 1500)
+  }
+
+  const generateReport = () => {
+    setGeneratingReport(true)
+    setAiReportText('')
+    setTimeout(() => {
+      setGeneratingReport(false)
+      setAiReportText('Báo cáo phân tích: Độ ẩm đất duy trì trung bình ở mức 58%, nhiệt độ nhà kính ổn định ở mức 32.5°C. TinyML khuyến nghị duy trì chu kỳ tưới vào lúc 06:00 hàng ngày và tối ưu hóa hệ thống chiếu sáng từ 18:00 đến 22:00 để thúc đẩy sinh trưởng.')
     }, 1500)
   }
 
@@ -502,14 +525,27 @@ export default function DevicesPage() {
             <h1>HỆ THỐNG GREENBOARD</h1>
             <div className="subtitle">GIÁM SÁT SẢN XUẤT NÔNG NGHIỆP</div>
           </div>
-          <div className="user-profile">
+          <div
+            ref={profileRef}
+            className="user-profile"
+            onClick={() => setShowDropdown(!showDropdown)}
+          >
             <div className="user-profile-info">
+              <div className="user-profile-title">GIÁM SÁT VIÊN</div>
               <div className="user-profile-name">{user?.name || user?.username || user?.email || 'User'}</div>
             </div>
             <div className="user-avatar">{userInitials}</div>
+            {showDropdown && (
+              <div className="user-profile-dropdown" onClick={(e) => e.stopPropagation()}>
+                <button className="dropdown-item" onClick={logout}>
+                  <span>🚪</span>
+                  <span>Đăng xuất</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
-        
+
         <div className="card" style={{ marginTop: 20 }}>
           <div className="empty-state">
             <div className="empty-icon">🌱</div>
@@ -538,11 +574,11 @@ export default function DevicesPage() {
           <h1>{activeTab === 'overview' ? 'Tổng Quan' : activeTab === 'control' ? 'Điều Khiển' : activeTab === 'map' ? 'Bản Đồ Trang Trại' : activeTab === 'analytics' ? 'Phân Tích Dữ Liệu' : 'Trợ Lý AI'}</h1>
           <div className="subtitle">HỆ THỐNG GIÁM SÁT V2.4</div>
         </div>
-        
+
         <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
           {filteredSelectDevices.length > 1 && (
-            <select 
-              value={activeDevice?._id} 
+            <select
+              value={activeDevice?._id}
               onChange={(e) => setActiveDevice(devices.find(d => d._id === e.target.value))}
               style={{ width: 'auto', padding: '6px 12px', fontSize: 13, borderRadius: 10, background: '#121620' }}
             >
@@ -552,28 +588,29 @@ export default function DevicesPage() {
             </select>
           )}
 
-          <Link 
-            to="/devices/new" 
-            className="btn btn-primary" 
-            style={{ 
-              padding: '6px 12px', 
-              fontSize: 13, 
-              borderRadius: 10, 
-              display: 'flex', 
-              alignItems: 'center', 
+          <Link
+            to="/devices/new"
+            className="btn btn-primary"
+            style={{
+              padding: '6px 12px',
+              fontSize: 13,
+              borderRadius: 10,
+              display: 'flex',
+              alignItems: 'center',
               gap: 6,
               textDecoration: 'none'
             }}
           >
             ➕ Thêm thiết bị
           </Link>
-          
-          <div 
-            className="user-profile" 
+
+          <div
+            className="user-profile"
             style={{ position: 'relative', cursor: 'pointer' }}
             onClick={(e) => { e.stopPropagation(); setShowProfileMenu(!showProfileMenu); }}
           >
             <div className="user-profile-info">
+              <div className="user-profile-title">GIÁM SÁT VIÊN</div>
               <div className="user-profile-name">{user?.name || user?.username || user?.email || 'User'}</div>
             </div>
             <div className="user-avatar">{userInitials}</div>
@@ -642,13 +679,13 @@ export default function DevicesPage() {
       {/* Render selected view tab */}
       {activeTab === 'overview' && (
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          
+
           {/* TinyML Banner & Status Label Row */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
             <div className="tinyml-banner" style={{ marginBottom: 0 }}>
               {tinymlText}
             </div>
-            
+
             {activeDevice && (
               <span className={`live-indicator ${(deviceStatuses[activeDevice.externalId] || activeDevice.status) === 'online' ? 'connected' : 'disconnected'}`} style={{ fontSize: 12, padding: '6px 14px', borderRadius: 20 }}>
                 <span className="live-dot" />
@@ -727,46 +764,46 @@ export default function DevicesPage() {
                   <AreaChart data={chartsData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#ff7043" stopOpacity={0.2}/>
-                        <stop offset="95%" stopColor="#ff7043" stopOpacity={0.01}/>
+                        <stop offset="5%" stopColor="#ff7043" stopOpacity={0.2} />
+                        <stop offset="95%" stopColor="#ff7043" stopOpacity={0.01} />
                       </linearGradient>
                       <linearGradient id="colorSoil" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0.01}/>
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0.01} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid stroke="rgba(255,255,255,0.04)" strokeDasharray="3 3" vertical={false} />
-                    <XAxis 
+                    <XAxis
                       dataKey="timeLabel"
                       tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 9 }}
                       axisLine={false}
                       tickLine={false}
                     />
-                    <YAxis 
+                    <YAxis
                       tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 9 }}
                       axisLine={false}
                       tickLine={false}
                     />
-                    <Tooltip 
+                    <Tooltip
                       contentStyle={{ backgroundColor: '#0f121a', borderColor: 'rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 12 }}
                     />
-                    <Area 
-                      type="monotone" 
-                      dataKey="temperature" 
-                      name="Nhiệt độ (°C)" 
-                      stroke="#ff7043" 
+                    <Area
+                      type="monotone"
+                      dataKey="temperature"
+                      name="Nhiệt độ (°C)"
+                      stroke="#ff7043"
                       strokeWidth={2}
-                      fillOpacity={1} 
-                      fill="url(#colorTemp)" 
+                      fillOpacity={1}
+                      fill="url(#colorTemp)"
                     />
-                    <Area 
-                      type="monotone" 
-                      dataKey="soilMoisture" 
-                      name="Độ ẩm đất (%)" 
-                      stroke="#10b981" 
+                    <Area
+                      type="monotone"
+                      dataKey="soilMoisture"
+                      name="Độ ẩm đất (%)"
+                      stroke="#10b981"
                       strokeWidth={2}
-                      fillOpacity={1} 
-                      fill="url(#colorSoil)" 
+                      fillOpacity={1}
+                      fill="url(#colorSoil)"
                     />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -808,16 +845,16 @@ export default function DevicesPage() {
                     </div>
                     {opMode === 'manual' ? (
                       <label className="ios-switch">
-                        <input 
-                          type="checkbox" 
-                          checked={cmdPump === 'ON'} 
-                          onChange={() => toggleRelay('pump', cmdPump, s3Controller?._id)} 
+                        <input
+                          type="checkbox"
+                          checked={cmdPump === 'ON'}
+                          onChange={() => toggleRelay('pump', cmdPump, s3Controller?._id)}
                           disabled={!s3Controller}
                         />
                         <span className="ios-slider"></span>
                       </label>
                     ) : (
-                      <span style={{ 
+                      <span style={{
                         fontSize: 11, fontWeight: 700,
                         color: (s3Controller?.lastPumpState || 'OFF') === 'ON' ? '#10b981' : 'var(--text-muted)',
                         background: (s3Controller?.lastPumpState || 'OFF') === 'ON' ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.02)',
@@ -839,16 +876,16 @@ export default function DevicesPage() {
                     </div>
                     {opMode === 'manual' ? (
                       <label className="ios-switch">
-                        <input 
-                          type="checkbox" 
-                          checked={cmdLight === 'ON'} 
-                          onChange={() => toggleRelay('light', cmdLight, s3Controller?._id)} 
+                        <input
+                          type="checkbox"
+                          checked={cmdLight === 'ON'}
+                          onChange={() => toggleRelay('light', cmdLight, s3Controller?._id)}
                           disabled={!s3Controller}
                         />
                         <span className="ios-slider"></span>
                       </label>
                     ) : (
-                      <span style={{ 
+                      <span style={{
                         fontSize: 11, fontWeight: 700,
                         color: (s3Controller?.lastLightState || 'OFF') === 'ON' ? '#ffa726' : 'var(--text-muted)',
                         background: (s3Controller?.lastLightState || 'OFF') === 'ON' ? 'rgba(255,167,38,0.1)' : 'rgba(255,255,255,0.02)',
@@ -870,16 +907,16 @@ export default function DevicesPage() {
                     </div>
                     {opMode === 'manual' ? (
                       <label className="ios-switch">
-                        <input 
-                          type="checkbox" 
-                          checked={cmdFan === 'ON'} 
-                          onChange={() => toggleRelay('fan', cmdFan, s3Controller?._id)} 
+                        <input
+                          type="checkbox"
+                          checked={cmdFan === 'ON'}
+                          onChange={() => toggleRelay('fan', cmdFan, s3Controller?._id)}
                           disabled={!s3Controller}
                         />
                         <span className="ios-slider"></span>
                       </label>
                     ) : (
-                      <span style={{ 
+                      <span style={{
                         fontSize: 11, fontWeight: 700,
                         color: (s3Controller?.lastFanState || 'OFF') === 'ON' ? '#29b6f6' : 'var(--text-muted)',
                         background: (s3Controller?.lastFanState || 'OFF') === 'ON' ? 'rgba(41,182,246,0.1)' : 'rgba(255,255,255,0.02)',
@@ -898,21 +935,21 @@ export default function DevicesPage() {
                     ⚙️ Operational Mode
                   </div>
                   <div className="mode-selector">
-                    <button 
+                    <button
                       className={`mode-btn ${opMode === 'manual' ? 'active' : ''}`}
                       onClick={() => handleModeChange('manual', s3Controller?._id)}
                       disabled={modeChanging || !s3Controller}
                     >
                       Manual
                     </button>
-                    <button 
+                    <button
                       className={`mode-btn ${opMode === 'auto' ? 'active' : ''}`}
                       onClick={() => handleModeChange('auto', s3Controller?._id)}
                       disabled={modeChanging || !s3Controller}
                     >
                       Auto
                     </button>
-                    <button 
+                    <button
                       className={`mode-btn ${opMode === 'scheduled' ? 'active' : ''}`}
                       onClick={() => handleModeChange('scheduled', s3Controller?._id)}
                       disabled={modeChanging || !s3Controller}
@@ -1019,7 +1056,7 @@ export default function DevicesPage() {
 
       {activeTab === 'control' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          
+
           {/* S3 Controllers Status Row */}
           {s3Controllers.length > 0 && (
             <div>
@@ -1071,7 +1108,7 @@ export default function DevicesPage() {
 
           {/* Control Grid */}
           <div className="dashboard-grid">
-            
+
             {/* Left Column: Automation and Schedules */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               {activeDevice ? (
@@ -1120,10 +1157,10 @@ export default function DevicesPage() {
                       </div>
                     </div>
                     <label className="ios-switch">
-                      <input 
-                        type="checkbox" 
-                        checked={cmdPump === 'ON'} 
-                        onChange={() => toggleRelay('pump', cmdPump, s3Controller?._id)} 
+                      <input
+                        type="checkbox"
+                        checked={cmdPump === 'ON'}
+                        onChange={() => toggleRelay('pump', cmdPump, s3Controller?._id)}
                         disabled={!s3Controller}
                       />
                       <span className="ios-slider"></span>
@@ -1139,10 +1176,10 @@ export default function DevicesPage() {
                       </div>
                     </div>
                     <label className="ios-switch">
-                      <input 
-                        type="checkbox" 
-                        checked={cmdLight === 'ON'} 
-                        onChange={() => toggleRelay('light', cmdLight, s3Controller?._id)} 
+                      <input
+                        type="checkbox"
+                        checked={cmdLight === 'ON'}
+                        onChange={() => toggleRelay('light', cmdLight, s3Controller?._id)}
                         disabled={!s3Controller}
                       />
                       <span className="ios-slider"></span>
@@ -1158,10 +1195,10 @@ export default function DevicesPage() {
                       </div>
                     </div>
                     <label className="ios-switch">
-                      <input 
-                        type="checkbox" 
-                        checked={cmdFan === 'ON'} 
-                        onChange={() => toggleRelay('fan', cmdFan, s3Controller?._id)} 
+                      <input
+                        type="checkbox"
+                        checked={cmdFan === 'ON'}
+                        onChange={() => toggleRelay('fan', cmdFan, s3Controller?._id)}
                         disabled={!s3Controller}
                       />
                       <span className="ios-slider"></span>
@@ -1175,21 +1212,21 @@ export default function DevicesPage() {
                     ⚙️ Operational Mode
                   </div>
                   <div className="mode-selector">
-                    <button 
+                    <button
                       className={`mode-btn ${opMode === 'manual' ? 'active' : ''}`}
                       onClick={() => handleModeChange('manual', s3Controller?._id)}
                       disabled={modeChanging || !s3Controller}
                     >
                       Manual
                     </button>
-                    <button 
+                    <button
                       className={`mode-btn ${opMode === 'auto' ? 'active' : ''}`}
                       onClick={() => handleModeChange('auto', s3Controller?._id)}
                       disabled={modeChanging || !s3Controller}
                     >
                       Auto
                     </button>
-                    <button 
+                    <button
                       className={`mode-btn ${opMode === 'scheduled' ? 'active' : ''}`}
                       onClick={() => handleModeChange('scheduled', s3Controller?._id)}
                       disabled={modeChanging || !s3Controller}
@@ -1206,7 +1243,7 @@ export default function DevicesPage() {
                 </div>
               </div>
             </div>
-            
+
           </div>
         </div>
       )}
@@ -1216,12 +1253,12 @@ export default function DevicesPage() {
           <h3 style={{ fontSize: 15, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 16 }}>
             Bản Đồ Phân Phối Thiết Bị
           </h3>
-          <div style={{ 
-            height: 380, 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center', 
-            background: 'rgba(0,0,0,0.3)', 
+          <div style={{
+            height: 380,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(0,0,0,0.3)',
             borderRadius: 12,
             border: '1px solid var(--border)',
             position: 'relative',
@@ -1233,24 +1270,24 @@ export default function DevicesPage() {
               backgroundImage: 'radial-gradient(rgba(16, 185, 129, 0.08) 1px, transparent 0)',
               backgroundSize: '24px 24px',
             }} />
-            
+
             {/* SVG Farm Plot layout */}
             <svg viewBox="0 0 400 240" width="100%" height="80%" style={{ position: 'relative', maxWidth: 500 }}>
               <rect x="20" y="20" width="360" height="200" rx="10" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="2" />
-              
+
               {/* Agricultural zones grid */}
               <line x1="140" y1="20" x2="140" y2="220" stroke="rgba(255,255,255,0.06)" strokeDasharray="4 4" />
               <line x1="260" y1="20" x2="260" y2="220" stroke="rgba(255,255,255,0.06)" strokeDasharray="4 4" />
-              
+
               <text x="75" y="45" fill="rgba(255,255,255,0.2)" fontSize="10" fontWeight="bold" textAnchor="middle">KHU VỰC A (RAU SẠCH)</text>
               <text x="200" y="45" fill="rgba(255,255,255,0.2)" fontSize="10" fontWeight="bold" textAnchor="middle">KHU VỰC B (CÂY ĂN QUẢ)</text>
               <text x="325" y="45" fill="rgba(255,255,255,0.2)" fontSize="10" fontWeight="bold" textAnchor="middle">KHU VỰC C (HOA KIỂNG)</text>
-              
+
               {/* Nodes and Sensor coordinates */}
               <circle cx="80" cy="120" r="25" fill="rgba(16,185,129,0.1)" stroke="rgba(16,185,129,0.3)" />
               <circle cx="80" cy="120" r="4" fill="#10b981" />
               <text x="80" y="160" fill="#10b981" fontSize="9" fontWeight="bold" textAnchor="middle">NODE 1 (HOẠT ĐỘNG)</text>
-              
+
               <circle cx="200" cy="120" r="25" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.1)" />
               <circle cx="200" cy="120" r="4" fill="rgba(255,255,255,0.3)" />
               <text x="200" y="160" fill="rgba(255,255,255,0.3)" fontSize="9" textAnchor="middle">NODE 2 (OFFLINE)</text>
@@ -1262,7 +1299,7 @@ export default function DevicesPage() {
               {/* Water Valve Line Connection */}
               <path d="M 80 120 L 200 120 L 320 120" fill="none" stroke="rgba(16,185,129,0.2)" strokeWidth="1" strokeDasharray="3 3" />
             </svg>
-            
+
             {/* Blinking Live Indicator overlay */}
             <div style={{
               position: 'absolute', top: 16, right: 16,
@@ -1278,66 +1315,140 @@ export default function DevicesPage() {
       )}
 
       {activeTab === 'analytics' && (
-        <div style={{ display: 'grid', gap: 20 }}>
-          <div className="grid grid-2">
-            <div className="card" style={{ padding: 16 }}>
-              <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>NHIỆT ĐỘ CẢM BIẾN (°C)</div>
-              <div style={{ height: 180 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* AI Strategic Report */}
+          <div className="card" style={{ padding: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
+            <div>
+              <h3 style={{ fontSize: 16, fontWeight: 800, color: '#fff', marginBottom: 4 }}>
+                AI Strategic Report
+              </h3>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
+                Phân tích dữ liệu lịch sử và đưa ra chiến lược tưới lâu dài
+              </p>
+              {aiReportText && (
+                <div style={{
+                  marginTop: 12,
+                  padding: 12,
+                  background: 'rgba(16,185,129,0.05)',
+                  border: '1px solid rgba(16,185,129,0.15)',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  color: '#81c784',
+                  lineHeight: 1.5,
+                  maxWidth: 700,
+                  animation: 'dropdownFadeIn 0.3s ease both'
+                }}>
+                  🤖 {aiReportText}
+                </div>
+              )}
+            </div>
+            <button
+              className="btn btn-primary"
+              onClick={generateReport}
+              disabled={generatingReport}
+              style={{ borderRadius: 20, padding: '10px 24px', fontSize: 12 }}
+            >
+              {generatingReport ? 'GENERATING...' : 'GENERATE AI SUMMARY'}
+            </button>
+          </div>
+
+          {/* Grid: Charts */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            {/* Soil Moisture */}
+            <div className="card" style={{ padding: 20 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 16, letterSpacing: '0.5px' }}>
+                SOIL MOISTURE MATRIX (%)
+              </div>
+              <div style={{ height: 220 }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartsData}>
+                  <AreaChart data={chartsData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorSoilAnalytic" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0.01} />
+                      </linearGradient>
+                    </defs>
                     <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
-                    <XAxis dataKey="timeLabel" tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.3)' }} axisLine={false} />
-                    <YAxis tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.3)' }} axisLine={false} />
-                    <Tooltip />
-                    <Area type="monotone" dataKey="temperature" stroke="#ff7043" strokeWidth={2} fill="rgba(255,112,67,0.1)" />
+                    <XAxis dataKey="timeLabel" tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.3)' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.3)' }} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={{ backgroundColor: '#0f121a', borderColor: 'rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 12 }} />
+                    <Area type="monotone" dataKey="soilMoisture" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorSoilAnalytic)" />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
-            <div className="card" style={{ padding: 16 }}>
-              <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>ĐỘ ẨM KHÔNG KHÍ (%)</div>
-              <div style={{ height: 180 }}>
+            {/* Lux */}
+            <div className="card" style={{ padding: 20 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 16, letterSpacing: '0.5px' }}>
+                LUMINOUS INTENSITY (LUX)
+              </div>
+              <div style={{ height: 220 }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartsData}>
+                  <AreaChart data={chartsData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorLuxAnalytic" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#ffa726" stopOpacity={0.2} />
+                        <stop offset="95%" stopColor="#ffa726" stopOpacity={0.01} />
+                      </linearGradient>
+                    </defs>
                     <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
-                    <XAxis dataKey="timeLabel" tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.3)' }} axisLine={false} />
-                    <YAxis tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.3)' }} axisLine={false} />
-                    <Tooltip />
-                    <Area type="monotone" dataKey="humidity" stroke="#29b6f6" strokeWidth={2} fill="rgba(41,182,246,0.1)" />
+                    <XAxis dataKey="timeLabel" tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.3)' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.3)' }} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={{ backgroundColor: '#0f121a', borderColor: 'rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 12 }} />
+                    <Area type="stepAfter" dataKey="lux" stroke="#ffa726" strokeWidth={2} fillOpacity={1} fill="url(#colorLuxAnalytic)" />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
             </div>
+          </div>
 
-            <div className="card" style={{ padding: 16 }}>
-              <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>ĐỘ ẨM ĐẤT (%)</div>
-              <div style={{ height: 180 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartsData}>
-                    <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
-                    <XAxis dataKey="timeLabel" tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.3)' }} axisLine={false} />
-                    <YAxis tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.3)' }} axisLine={false} />
-                    <Tooltip />
-                    <Area type="monotone" dataKey="soilMoisture" stroke="#10b981" strokeWidth={2} fill="rgba(16,185,129,0.1)" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
+          {/* Raw Telemetry Table */}
+          <div className="card" style={{ padding: 20 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 16, letterSpacing: '0.5px' }}>
+              RAW TELEMETRY TABLE
             </div>
-
-            <div className="card" style={{ padding: 16 }}>
-              <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>CƯỜNG ĐỘ ÁNH SÁNG (LUX)</div>
-              <div style={{ height: 180 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartsData}>
-                    <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
-                    <XAxis dataKey="timeLabel" tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.3)' }} axisLine={false} />
-                    <YAxis tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.3)' }} axisLine={false} />
-                    <Tooltip />
-                    <Area type="monotone" dataKey="lux" stroke="#ffa726" strokeWidth={2} fill="rgba(255,167,38,0.1)" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    <th style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '10px 16px', borderBottom: '1px solid var(--border)', textAlign: 'left' }}>TIMELINE</th>
+                    <th style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '10px 16px', borderBottom: '1px solid var(--border)', textAlign: 'left' }}>TEMP</th>
+                    <th style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '10px 16px', borderBottom: '1px solid var(--border)', textAlign: 'left' }}>HUM</th>
+                    <th style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '10px 16px', borderBottom: '1px solid var(--border)', textAlign: 'left' }}>SOIL</th>
+                    <th style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '10px 16px', borderBottom: '1px solid var(--border)', textAlign: 'left' }}>LUM</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {chartsData.length === 0 ? (
+                    <tr>
+                      <td colSpan="5" style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                        Không có dữ liệu telemetry
+                      </td>
+                    </tr>
+                  ) : (
+                    [...chartsData].reverse().slice(0, 10).map((row, idx) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                        <td style={{ padding: '10px 16px', fontSize: 13, fontFamily: 'DM Mono, monospace', color: 'var(--text-dim)' }}>
+                          {row.timestamp ? new Date(row.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—'}
+                        </td>
+                        <td style={{ padding: '10px 16px', fontSize: 13, fontFamily: 'DM Mono, monospace', color: '#ff7043' }}>
+                          {row.temperature !== undefined ? `${row.temperature} °C` : '—'}
+                        </td>
+                        <td style={{ padding: '10px 16px', fontSize: 13, fontFamily: 'DM Mono, monospace', color: '#29b6f6' }}>
+                          {row.humidity !== undefined ? `${row.humidity} %` : '—'}
+                        </td>
+                        <td style={{ padding: '10px 16px', fontSize: 13, fontFamily: 'DM Mono, monospace', color: '#10b981' }}>
+                          {row.soilMoisture !== undefined ? `${row.soilMoisture} %` : '—'}
+                        </td>
+                        <td style={{ padding: '10px 16px', fontSize: 13, fontFamily: 'DM Mono, monospace', color: '#ffa726' }}>
+                          {row.lux !== undefined ? `${row.lux} lx` : '—'}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -1346,8 +1457,8 @@ export default function DevicesPage() {
       {activeTab === 'ai' && (
         <div className="card" style={{ padding: 0, height: 480, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {/* Chat Header */}
-          <div style={{ 
-            padding: '16px 20px', 
+          <div style={{
+            padding: '16px 20px',
             borderBottom: '1px solid var(--border)',
             background: 'rgba(16,185,129,0.05)',
             display: 'flex',
@@ -1368,8 +1479,8 @@ export default function DevicesPage() {
           {/* Chat message logs */}
           <div style={{ flex: 1, padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
             {messages.map((m, idx) => (
-              <div 
-                key={idx} 
+              <div
+                key={idx}
                 style={{
                   alignSelf: m.sender === 'ai' ? 'flex-start' : 'flex-end',
                   maxWidth: '75%',
@@ -1386,7 +1497,7 @@ export default function DevicesPage() {
                 {m.text}
               </div>
             ))}
-            
+
             {isTyping && (
               <div style={{
                 alignSelf: 'flex-start',
@@ -1421,23 +1532,23 @@ export default function DevicesPage() {
           </div>
 
           {/* Chat input form */}
-          <form onSubmit={handleSendChat} style={{ 
-            padding: 16, 
+          <form onSubmit={handleSendChat} style={{
+            padding: 16,
             borderTop: '1px solid var(--border)',
             display: 'flex',
             gap: 10
           }}>
-            <input 
-              type="text" 
-              placeholder="Hỏi trợ lý về tưới nước, nhiệt độ hoặc độ ẩm..." 
+            <input
+              type="text"
+              placeholder="Hỏi trợ lý về tưới nước, nhiệt độ hoặc độ ẩm..."
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               disabled={isTyping}
               style={{ flex: 1, padding: '10px 16px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', borderRadius: 10, outline: 'none', color: '#fff' }}
             />
-            <button 
-              className="btn btn-primary" 
-              type="submit" 
+            <button
+              className="btn btn-primary"
+              type="submit"
               disabled={isTyping || !chatInput.trim()}
               style={{ borderRadius: 10, padding: '10px 16px' }}
             >
@@ -1448,11 +1559,11 @@ export default function DevicesPage() {
       )}
 
       {activeTab === 'device-settings' && (
-        <DeviceSettingsPanel 
-          devices={devices} 
-          setDevices={setDevices} 
-          activeDevice={activeDevice} 
-          setActiveDevice={setActiveDevice} 
+        <DeviceSettingsPanel
+          devices={devices}
+          setDevices={setDevices}
+          activeDevice={activeDevice}
+          setActiveDevice={setActiveDevice}
         />
       )}
     </div>

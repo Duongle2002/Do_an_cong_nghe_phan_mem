@@ -1,171 +1,270 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
+import '../services/api.dart';
+import '../models/device.dart';
+import '../models/sensor_data.dart';
 
-class InfoPage extends StatelessWidget {
+class InfoPage extends StatefulWidget {
   const InfoPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final auth = Provider.of<AuthService>(context);
-    final user = auth.user ?? {};
-    final name = user['name'] ?? 'Farm Manager';
-    final email = user['email'] ?? 'manager@smartfarm.com';
+  State<InfoPage> createState() => _InfoPageState();
+}
 
+class _InfoPageState extends State<InfoPage> {
+  bool _loading = true;
+  List<Device> _devices = [];
+  SensorData? _latestData;
+  String? _error;
+  bool _thinking = false;
+  String? _inferenceResult;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDeviceData();
+  }
+
+  Future<void> _loadDeviceData() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    final auth = Provider.of<AuthService>(context, listen: false);
+    try {
+      final rawDevs = await Api.getDevices(auth.accessToken ?? '');
+      _devices = rawDevs.map((e) => Device.fromJson(e as Map<String, dynamic>)).toList();
+
+      if (_devices.isNotEmpty) {
+        final d = _devices.first;
+        final rawSensors = await Api.getSensorData(auth.accessToken ?? '', d.id, limit: 1);
+        if (rawSensors.isNotEmpty) {
+          _latestData = SensorData.fromJson(rawSensors.first as Map<String, dynamic>);
+        }
+      }
+    } catch (e) {
+      _error = e.toString();
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _runInference() {
+    setState(() {
+      _thinking = true;
+      _inferenceResult = null;
+    });
+
+    // Simulate AI inference calculations
+    Timer(const Duration(milliseconds: 1500), () {
+      if (!mounted) return;
+
+      final soil = _latestData?.soilMoisture ?? 52.0;
+      final temp = _latestData?.temperature ?? 27.4;
+      final hum = _latestData?.humidity ?? 68.0;
+      final lux = _latestData?.lux ?? 4200.0;
+
+      String advice = 'Đất đủ nước, giữ nguyên trạng thái vận hành.';
+      if (soil < 45) {
+        advice = 'Đất đang khô hạn. Khuyên bạn nên kích hoạt vòi tưới nước.';
+      } else if (temp > 30) {
+        advice = 'Nhiệt độ nhà kính tăng cao. Khuyên bạn bật quạt hút thông gió để làm mát.';
+      } else if (soil > 65) {
+        advice = 'Đất đang quá ẩm. Đề xuất khóa van nước và giảm tưới.';
+      }
+
+      setState(() {
+        _thinking = false;
+        _inferenceResult = '''[BÁO CÁO PHÂN TÍCH AGRO-SYNAPSE V2]
+
+• Độ ẩm đất: ${soil.toStringAsFixed(0)}% (${soil >= 45 && soil <= 60 ? 'Đầy đủ, ổn định' : soil < 45 ? 'Khô hạn' : 'Dư ẩm'})
+• Nhiệt độ: ${temp.toStringAsFixed(1)}°C (${temp >= 20 && temp <= 30 ? 'Lý tưởng' : 'Cần điều chỉnh'})
+• Độ ẩm khí: ${hum.toStringAsFixed(0)}% (Môi trường ổn định)
+• Cường độ sáng: ${lux.toStringAsFixed(0)} lx (Độ sáng tốt cho quang hợp)
+
+👉 KẾT LUẬN & KHUYẾN NGHỊ:
+$advice''';
+      });
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7F2),
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            expandedHeight: 200,
-            floating: false,
-            pinned: true,
-            backgroundColor: const Color(0xFF2E7D32),
-            flexibleSpace: FlexibleSpaceBar(
-              background: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topRight,
-                    end: Alignment.bottomLeft,
-                    colors: [Color(0xFF388E3C), Color(0xFF1B5E20)],
-                  ),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const CircleAvatar(
-                      radius: 40,
-                      backgroundColor: Colors.white24,
-                      child: Icon(Icons.person, size: 45, color: Colors.white),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      name,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      email,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+      backgroundColor: const Color(0xFF0C0F17),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? Center(child: Text('Lỗi: $_error', style: const TextStyle(color: Colors.red)))
+              : _devices.isEmpty
+                  ? const Center(child: Text('Không tìm thấy thiết bị'))
+                  : _buildAIView(),
+    );
+  }
+
+  Widget _buildAIView() {
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 50, 20, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          const Text(
+            'MÔ HÌNH NƠ-RON',
+            style: TextStyle(
+              color: Color(0xFF9EADBC),
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.2,
             ),
           ),
-          SliverPadding(
-            padding: const EdgeInsets.all(20),
-            sliver: SliverList(
-              delegate: SliverChildListDelegate([
-                _buildSectionTitle('ACCOUNT SETTINGS'),
-                _buildActionCard(
-                  icon: Icons.notifications_none_outlined,
-                  title: 'Notifications',
-                  subtitle: 'Alert history and logs',
-                  onTap: () => Navigator.of(context).pushNamed('/alerts'),
-                ),
-                _buildActionCard(
-                  icon: Icons.sensors_outlined,
-                  title: 'Hardware Simulation',
-                  subtitle: 'Send manual sensor data',
-                  onTap: () => Navigator.of(context).pushNamed('/send-sensor'),
+          const SizedBox(height: 4),
+          const Text(
+            'Trợ lý Cây Trồng AI',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Brain Card
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: const Color(0xFF161B26),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFF222938), width: 0.8),
+            ),
+            child: Column(
+              children: [
+                // Brain Icon container
+                Container(
+                  width: 80,
+                  height: 80,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Icon(
+                    Icons.psychology,
+                    color: Colors.white,
+                    size: 48,
+                  ),
                 ),
                 const SizedBox(height: 20),
-                _buildSectionTitle('APPLICATION'),
-                _buildActionCard(
-                  icon: Icons.info_outline,
-                  title: 'App Version',
-                  subtitle: '1.0.0 (Premium)',
-                  onTap: null,
+
+                const Text(
+                  'AGRO-SYNAPSE V2 MOBILE',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-                _buildActionCard(
-                  icon: Icons.help_outline,
-                  title: 'Documentation',
-                  subtitle: 'How to manage your farm',
-                  onTap: null,
+                const SizedBox(height: 8),
+
+                const Text(
+                  'Kết nối dữ liệu biên, phân tích xu hướng nhiệt và cung cấp lời khuyên chăm sóc nông nghiệp.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Color(0xFF9EADBC),
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
                 ),
-                const SizedBox(height: 40),
+                const SizedBox(height: 24),
+
+                // Action Button
                 SizedBox(
                   width: double.infinity,
-                  height: 55,
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Colors.redAccent),
-                      foregroundColor: Colors.redAccent,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF065F46),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(15),
+                        borderRadius: BorderRadius.circular(12),
+                        side: const BorderSide(color: Color(0xFF10B981), width: 1),
                       ),
                     ),
-                    onPressed: () => auth.logout(),
-                    icon: const Icon(Icons.logout),
+                    onPressed: _thinking ? null : _runInference,
+                    icon: const Icon(Icons.auto_awesome, color: Color(0xFF34D399), size: 18),
                     label: const Text(
-                      'LOGOUT FROM SYSTEM',
-                      style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1),
+                      'BẮT ĐẦU SUY LUẬN AI',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.1,
+                      ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 40),
-              ]),
+              ],
             ),
           ),
-        ],
-      ),
-    );
-  }
+          const SizedBox(height: 24),
 
-  Widget _buildSectionTitle(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 4, bottom: 12, top: 8),
-      child: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w900,
-          color: Colors.black38,
-          letterSpacing: 1.5,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActionCard({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback? onTap,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.01),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          )
-        ],
-      ),
-      child: ListTile(
-        onTap: onTap,
-        leading: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF4F7F2),
-            borderRadius: BorderRadius.circular(10),
+          // Inference Space Card
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF161B26),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFF222938), width: 0.8),
+            ),
+            child: _thinking
+                ? Column(
+                    children: const [
+                      SizedBox(height: 20),
+                      CircularProgressIndicator(color: Color(0xFF10B981)),
+                      SizedBox(height: 16),
+                      Text(
+                        'MÔ HÌNH AI ĐANG SUY LUẬN...',
+                        style: TextStyle(
+                          color: Color(0xFF10B981),
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.1,
+                        ),
+                      ),
+                      SizedBox(height: 20),
+                    ],
+                  )
+                : _inferenceResult != null
+                    ? Text(
+                        _inferenceResult!,
+                        style: const TextStyle(
+                          color: Color(0xFF34D399),
+                          fontFamily: 'Courier',
+                          fontSize: 13,
+                          height: 1.5,
+                        ),
+                      )
+                    : const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 32),
+                        child: Text(
+                          'NHẤN NÚT TRÊN ĐỂ AI PHÂN TÍCH CẤU HÌNH ĐẤT!',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white24,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.1,
+                          ),
+                        ),
+                      ),
           ),
-          child: Icon(icon, color: const Color(0xFF2E7D32), size: 22),
-        ),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-        subtitle: Text(subtitle, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-        trailing: onTap != null ? const Icon(Icons.chevron_right, color: Colors.grey, size: 18) : null,
+          const SizedBox(height: 40),
+        ],
       ),
     );
   }

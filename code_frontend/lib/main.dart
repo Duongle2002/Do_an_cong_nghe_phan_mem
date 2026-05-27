@@ -35,38 +35,34 @@ class MyApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF2E7D32),
-            primary: const Color(0xFF2E7D32),
-            secondary: const Color(0xFF795548),
-            surface: const Color(0xFFF4F7F2),
+          brightness: Brightness.dark,
+          colorScheme: ColorScheme.dark(
+            primary: const Color(0xFF10B981), // Emerald Green
+            secondary: const Color(0xFFD97706), // Amber
+            surface: const Color(0xFF161B26), // Slate dark card background
+            background: const Color(0xFF0C0F17), // Deep Dark Navy/Black
           ),
-          scaffoldBackgroundColor: const Color(0xFFF4F7F2),
+          scaffoldBackgroundColor: const Color(0xFF0C0F17),
           appBarTheme: const AppBarTheme(
-            backgroundColor: Color(0xFFF4F7F2),
-            foregroundColor: Colors.black87,
+            backgroundColor: Color(0xFF0C0F17),
+            foregroundColor: Colors.white,
             elevation: 0,
             centerTitle: true,
             titleTextStyle: TextStyle(
-              color: Colors.black87,
+              color: Colors.white,
               fontSize: 20,
               fontWeight: FontWeight.bold,
             ),
           ),
           cardTheme: CardThemeData(
             elevation: 0,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            color: Colors.white,
-          ),
-          bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-            selectedItemColor: Color(0xFF2E7D32),
-            unselectedItemColor: Colors.grey,
-            backgroundColor: Colors.white,
-            type: BottomNavigationBarType.fixed,
-            elevation: 10,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: const BorderSide(color: Color(0xFF222938), width: 0.8),
+            ),
+            color: const Color(0xFF161B26),
           ),
         ),
-        debugShowCheckedModeBanner: false,
         routes: {
           '/devices': (_) => const DevicesPage(),
           '/schedules': (_) => const SchedulesPage(),
@@ -105,18 +101,76 @@ class _MainShellState extends State<MainShell> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: _pages[_index],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _index,
-        type: BottomNavigationBarType.fixed,
-        onTap: (v) => setState(() => _index = v),
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.devices), label: 'Devices'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.schedule),
-            label: 'Schedules',
+      bottomNavigationBar: Container(
+        height: 80,
+        decoration: const BoxDecoration(
+          color: Color(0xFF10141D),
+          border: Border(
+            top: BorderSide(color: Color(0xFF1E2533), width: 1),
           ),
-          BottomNavigationBarItem(icon: Icon(Icons.info), label: 'Info'),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: SafeArea(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildNavItem(0, Icons.grid_view_rounded, 'Trang chủ'),
+              _buildNavItem(1, Icons.settings_outlined, 'Vận hành'),
+              _buildNavItem(2, Icons.insert_chart_outlined, 'Báo cáo'),
+              _buildNavItem(3, Icons.psychology_outlined, 'Trợ lý AI'),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem(int index, IconData icon, String label) {
+    final isSelected = _index == index;
+    final activeColor = const Color(0xFF10B981);
+    final inactiveColor = const Color(0xFF9EADBC);
+
+    return InkWell(
+      onTap: () => setState(() => _index = index),
+      borderRadius: BorderRadius.circular(16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Orange dot above the active icon
+          Container(
+            width: 4,
+            height: 4,
+            margin: const EdgeInsets.only(bottom: 4),
+            decoration: BoxDecoration(
+              color: isSelected ? const Color(0xFFF59E0B) : Colors.transparent,
+              shape: BoxShape.circle,
+            ),
+          ),
+          // Active icon has a rounded green background
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: isSelected
+                ? const EdgeInsets.symmetric(horizontal: 16, vertical: 6)
+                : const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            decoration: BoxDecoration(
+              color: isSelected ? activeColor : Colors.transparent,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              icon,
+              color: isSelected ? Colors.white : inactiveColor,
+              size: 24,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: isSelected ? activeColor : inactiveColor,
+              fontSize: 10,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
         ],
       ),
     );

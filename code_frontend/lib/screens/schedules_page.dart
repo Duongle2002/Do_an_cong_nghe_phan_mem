@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../services/auth_service.dart';
 import '../services/api.dart';
-import 'package:intl/intl.dart';
 import '../models/device.dart';
+import '../models/sensor_data.dart';
 
 class SchedulesPage extends StatefulWidget {
   const SchedulesPage({super.key});
@@ -12,462 +14,396 @@ class SchedulesPage extends StatefulWidget {
   State<SchedulesPage> createState() => _SchedulesPageState();
 }
 
-class _SchedulesPageState extends State<SchedulesPage> with SingleTickerProviderStateMixin {
-  List<dynamic> _schedules = [];
+class _SchedulesPageState extends State<SchedulesPage> {
   bool _loading = true;
-  bool _busy = false;
-
-  late AnimationController _listController;
+  List<Device> _devices = [];
+  List<SensorData> _sensorHistory = [];
+  final List<String> _rawLogs = [];
+  String? _error;
+  StreamSubscription? _sseSub;
 
   @override
   void initState() {
     super.initState();
-    _listController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    );
-    _load();
+    _loadTelemetry();
   }
 
   @override
   void dispose() {
-    _listController.dispose();
+    _sseSub?.cancel();
     super.dispose();
   }
 
-  Future<void> _load() async {
-    setState(() => _loading = true);
+  Future<void> _loadTelemetry() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     final auth = Provider.of<AuthService>(context, listen: false);
     try {
-      final list = await Api.getSchedules(auth.accessToken ?? '');
-      setState(() => _schedules = list);
-      _listController.forward(from: 0);
-    } catch (e) {
-      setState(() => _schedules = []);
-    } finally {
-      setState(() => _loading = false);
-    }
-  }
+      final rawDevs = await Api.getDevices(auth.accessToken ?? '');
+      _devices = rawDevs.map((e) => Device.fromJson(e as Map<String, dynamic>)).toList();
 
-  Future<void> _showEditor({Map<String, dynamic>? existing}) async {
-    final auth = Provider.of<AuthService>(context, listen: false);
-    final result = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (ctx) => ScheduleEditorDialog(existing: existing),
-    );
-    if (result != null) {
-      setState(() => _busy = true);
-      try {
-        if (existing == null) {
-          await Api.createSchedule(auth.accessToken ?? '', result);
-        } else {
-          await Api.updateSchedule(auth.accessToken ?? '', existing['_id'], result);
+      if (_devices.isNotEmpty) {
+        final d = _devices.first;
+        final rawSensors = await Api.getSensorData(auth.accessToken ?? '', d.id, limit: 15);
+        _sensorHistory = rawSensors.map((e) => SensorData.fromJson(e as Map<String, dynamic>)).toList();
+        
+        // Populate initial raw logs
+        for (final s in _sensorHistory) {
+          final timeStr = DateFormat('HH:mm:ss').format(s.timestamp.toLocal());
+          final tempStr = s.temperature?.toStringAsFixed(1) ?? '--';
+          final soilStr = s.soilMoisture?.toStringAsFixed(0) ?? '--';
+          final humStr = s.humidity?.toStringAsFixed(0) ?? '--';
+          final luxStr = s.lux?.toStringAsFixed(0) ?? '--';
+          _rawLogs.add('[$timeStr] Nhiệt độ: $tempStr°C | Độ ẩm đất: $soilStr% | Độ ẩm khí: $humStr% | Lux: $luxStr');
         }
-        await _load();
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-      } finally {
-        setState(() => _busy = false);
+
+        _subscribeSse(d);
       }
+    } catch (e) {
+      _error = e.toString();
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
-  Future<void> _delete(String id) async {
+  void _subscribeSse(Device device) {
     final auth = Provider.of<AuthService>(context, listen: false);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete schedule?'),
-        content: const Text('Are you sure you want to delete this schedule?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Delete')),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    setState(() => _busy = true);
+    final externalId = device.externalId ?? device.id;
+    _sseSub?.cancel();
     try {
-      await Api.deleteSchedule(auth.accessToken ?? '', id);
-      await _load();
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Delete failed: $e')));
-    } finally {
-      setState(() => _busy = false);
-    }
+      final stream = Api.subscribeDeviceStream(auth.accessToken, externalId);
+      _sseSub = stream.listen((evt) {
+        if (evt.containsKey('temperature') ||
+            evt.containsKey('humidity') ||
+            evt.containsKey('soilMoisture') ||
+            evt.containsKey('lux')) {
+          final s = SensorData.fromJson(evt);
+          final timeStr = DateFormat('HH:mm:ss').format(DateTime.now());
+          final tempStr = s.temperature?.toStringAsFixed(1) ?? '--';
+          final soilStr = s.soilMoisture?.toStringAsFixed(0) ?? '--';
+          final humStr = s.humidity?.toStringAsFixed(0) ?? '--';
+          final luxStr = s.lux?.toStringAsFixed(0) ?? '--';
+          setState(() {
+            _sensorHistory.insert(0, s);
+            if (_sensorHistory.length > 30) _sensorHistory.removeLast();
+
+            _rawLogs.insert(0, '[$timeStr] SSE: Temp=$tempStr°C, Soil=$soilStr%, Hum=$humStr%, Lux=$luxStr');
+            if (_rawLogs.length > 50) _rawLogs.removeLast();
+          });
+        }
+      });
+    } catch (_) {}
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7F2),
-      appBar: AppBar(
-        title: const Text('Operation Schedule', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
+      backgroundColor: const Color(0xFF0C0F17),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _schedules.isEmpty
-          ? _buildEmptyState()
-          : Stack(
+          : _error != null
+              ? Center(child: Text('Lỗi: $_error', style: const TextStyle(color: Colors.red)))
+              : _devices.isEmpty
+                  ? const Center(child: Text('Không tìm thấy thiết bị'))
+                  : _buildTelemetryView(),
+    );
+  }
+
+  Widget _buildTelemetryView() {
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 50, 20, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          const Text(
+            'DỮ LIỆU THỰC NGHIỆM',
+            style: TextStyle(
+              color: Color(0xFF9EADBC),
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.2,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Phân tích Telemetry',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Chart Card
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF161B26),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFF222938), width: 0.8),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ListView.builder(
-                  itemCount: _schedules.length,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  itemBuilder: (ctx, i) {
-                    final s = _schedules[i] as Map<String, dynamic>;
-                    return AnimatedBuilder(
-                      animation: _listController,
-                      builder: (context, child) {
-                        final animation = CurvedAnimation(
-                          parent: _listController,
-                          curve: Interval((i / _schedules.length) * 0.5, 1.0, curve: Curves.easeOut),
-                        );
-                        return Opacity(
-                          opacity: animation.value,
-                          child: Transform.translate(
-                            offset: Offset(0, 30 * (1 - animation.value)),
-                            child: child,
-                          ),
-                        );
-                      },
-                      child: _buildScheduleCard(s),
-                    );
-                  },
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'ĐỘ ẨM ĐẤT & NHIỆT ĐỘ',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF065F46),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Text(
+                        'THỰC TẾ',
+                        style: TextStyle(
+                          color: Color(0xFF34D399),
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                if (_busy) const Positioned.fill(child: ColoredBox(color: Colors.black12)),
+                const SizedBox(height: 20),
+
+                // Custom Painter Chart
+                SizedBox(
+                  height: 180,
+                  width: double.infinity,
+                  child: CustomPaint(
+                    painter: DoubleLineChartPainter(data: _sensorHistory),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Chart Legend
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _buildLegendItem('Nhiệt độ (°C)', const Color(0xFFF97316)),
+                    const SizedBox(width: 24),
+                    _buildLegendItem('Độ ẩm đất (%)', const Color(0xFF10B981)),
+                  ],
+                ),
               ],
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showEditor(),
-        label: const Text('Add Task'),
-        icon: const Icon(Icons.add_alarm),
-        backgroundColor: const Color(0xFF2E7D32),
-      ),
-    );
-  }
+          ),
+          const SizedBox(height: 24),
 
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.calendar_today_outlined, size: 80, color: Colors.grey.shade300),
-          const SizedBox(height: 16),
-          const Text('No operations scheduled', style: TextStyle(color: Colors.grey, fontSize: 16)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildScheduleCard(Map<String, dynamic> s) {
-    final when = s['time'] != null ? DateTime.parse(s['time']).toLocal() : null;
-    final whenStr = when != null ? DateFormat('HH:mm · MMM d').format(when) : 'No time';
-    final isActive = s['active'] == true;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: isActive ? Colors.green.withOpacity(0.2) : Colors.transparent, width: 2),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4)),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: (isActive ? Colors.green : Colors.grey).withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                s['target'] == 'pump' ? Icons.water_drop : s['target'] == 'fan' ? Icons.air : Icons.settings,
-                color: isActive ? Colors.green : Colors.grey,
-                size: 24,
-              ),
+          // Raw Logs Card
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF161B26),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFF222938), width: 0.8),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${s['target']?.toUpperCase() ?? 'TASK'} → ${s['action'] ?? ''}',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: isActive ? Colors.black87 : Colors.grey),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(Icons.access_time, size: 12, color: Colors.grey.shade600),
-                      const SizedBox(width: 4),
-                      Text(whenStr, style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-                      if (s['repeat'] != null) ...[
-                        const SizedBox(width: 10),
-                        Icon(Icons.repeat, size: 12, color: Colors.grey.shade600),
-                        const SizedBox(width: 4),
-                        Text(s['repeat'], style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-                      ]
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            Switch.adaptive(
-              value: isActive,
-              activeColor: Colors.green,
-              onChanged: (v) async {
-                final auth = Provider.of<AuthService>(context, listen: false);
-                final body = Map<String, dynamic>.from(s);
-                body['active'] = v;
-                try {
-                  await Api.updateSchedule(auth.accessToken ?? '', s['_id'], body);
-                  _load();
-                } catch (_) {}
-              },
-            ),
-            IconButton(
-              icon: const Icon(Icons.more_vert, color: Colors.grey, size: 20),
-              onPressed: () => _showScheduleOptions(s),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showScheduleOptions(Map<String, dynamic> s) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
-      builder: (ctx) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(height: 10),
-          Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
-          const SizedBox(height: 10),
-          ListTile(leading: const Icon(Icons.edit), title: const Text('Edit Task'), onTap: () { Navigator.pop(ctx); _showEditor(existing: s); }),
-          ListTile(leading: const Icon(Icons.delete, color: Colors.red), title: const Text('Delete Task', style: TextStyle(color: Colors.red)), onTap: () { Navigator.pop(ctx); _delete(s['_id']); }),
-          const SizedBox(height: 20),
-        ],
-      ),
-    );
-  }
-}
-
-class ScheduleEditorDialog extends StatefulWidget {
-  final Map<String, dynamic>? existing;
-  const ScheduleEditorDialog({super.key, this.existing});
-
-  @override
-  State<ScheduleEditorDialog> createState() => _ScheduleEditorDialogState();
-}
-
-class _ScheduleEditorDialogState extends State<ScheduleEditorDialog> {
-  final _formKey = GlobalKey<FormState>();
-  String _name = '';
-  String _deviceId = '';
-  String _target = 'main';
-  String _action = 'ON';
-  DateTime? _time;
-  String _repeat = 'daily';
-  bool _active = true;
-  List<Device> _devices = [];
-  bool _loadingDevices = true;
-
-  @override
-  void initState() {
-    super.initState();
-    final e = widget.existing;
-    if (e != null) {
-      _name = e['name'] ?? '';
-      _deviceId = e['deviceId'] ?? '';
-      _target = e['target'] ?? 'main';
-      _action = e['action'] ?? 'ON';
-      _repeat = e['repeat'] ?? 'daily';
-      _active = e['active'] ?? true;
-      if (e['time'] != null) _time = DateTime.parse(e['time']);
-    }
-    _loadDevices();
-  }
-
-  Future<void> _loadDevices() async {
-    setState(() => _loadingDevices = true);
-    final auth = Provider.of<AuthService>(context, listen: false);
-    try {
-      final raw = await Api.getDevices(auth.accessToken ?? '');
-      final list = raw
-          .map((e) => Device.fromJson(e as Map<String, dynamic>))
-          .toList();
-      setState(() => _devices = List<Device>.from(list));
-    } catch (e) {
-      setState(() => _devices = []);
-    } finally {
-      setState(() => _loadingDevices = false);
-    }
-  }
-
-  Future<void> _pickDateTime() async {
-    final now = DateTime.now();
-    final d = await showDatePicker(
-      context: context,
-      initialDate: _time ?? now,
-      firstDate: now.subtract(const Duration(days: 365)),
-      lastDate: now.add(const Duration(days: 365)),
-    );
-    if (d == null) return;
-    final t = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(_time ?? now),
-    );
-    if (t == null) return;
-    setState(() => _time = DateTime(d.year, d.month, d.day, t.hour, t.minute));
-  }
-
-  void _submit() {
-    if (!_formKey.currentState!.validate()) return;
-    _formKey.currentState!.save();
-    final Map<String, dynamic> payload = {
-      'name': _name,
-      'deviceId': _deviceId,
-      'target': _target,
-      'action': _action,
-      'repeat': _repeat,
-      'active': _active,
-    };
-    if (_time != null) payload['time'] = _time!.toUtc().toIso8601String();
-    Navigator.of(context).pop(payload);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(
-        widget.existing == null ? 'Create schedule' : 'Edit schedule',
-      ),
-      content: SingleChildScrollView(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Device selector: show dropdown of devices assigned to account
-              _loadingDevices
-                  ? const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12.0),
-                      child: LinearProgressIndicator(),
-                    )
-                  : DropdownButtonFormField<String>(
-                      value: _deviceId.isNotEmpty ? _deviceId : null,
-                      items: _devices
-                          .map(
-                            (d) => DropdownMenuItem(
-                              value: d.id,
-                              child: Text(d.name.isNotEmpty ? d.name : d.id),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (v) => setState(() => _deviceId = v ?? ''),
-                      onSaved: (v) => _deviceId = v ?? '',
-                      validator: (v) =>
-                          v == null || v.isEmpty ? 'Required' : null,
-                      decoration: const InputDecoration(labelText: 'Device'),
-                    ),
-              if (!_loadingDevices && _devices.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8.0),
-                  child: Text(
-                    'No devices assigned to your account',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'NHẬT KÝ DỮ LIỆU THÔ',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-              DropdownButtonFormField<String>(
-                value: _target,
-                items: const [
-                  DropdownMenuItem(value: 'main', child: Text('Main')),
-                  DropdownMenuItem(value: 'fan', child: Text('Fan')),
-                  DropdownMenuItem(value: 'light', child: Text('Light')),
-                  DropdownMenuItem(value: 'pump', child: Text('Pump')),
-                ],
-                onChanged: (v) => setState(() => _target = v ?? 'main'),
-                decoration: const InputDecoration(labelText: 'Target'),
-              ),
-              DropdownButtonFormField<String>(
-                value: _action,
-                items: const [
-                  DropdownMenuItem(value: 'ON', child: Text('ON')),
-                  DropdownMenuItem(value: 'OFF', child: Text('OFF')),
-                ],
-                onChanged: (v) => setState(() => _action = v ?? 'ON'),
-                decoration: const InputDecoration(labelText: 'Action'),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      _time != null
-                          ? DateFormat.yMd().add_jm().format(_time!)
-                          : 'No time selected',
-                    ),
+                const SizedBox(height: 16),
+                Container(
+                  height: 240,
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0C0F17),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFF222938), width: 0.8),
                   ),
-                  TextButton(
-                    onPressed: _pickDateTime,
-                    child: const Text('Pick'),
-                  ),
-                ],
-              ),
-              SwitchListTile(
-                title: const Text('Active'),
-                value: _active,
-                onChanged: (v) => setState(() => _active = v),
-              ),
-              ExpansionTile(
-                title: const Text('Advanced'),
-                children: [
-                  TextFormField(
-                    initialValue: _name,
-                    decoration: const InputDecoration(labelText: 'Name'),
-                    onSaved: (v) => _name = v ?? '',
-                  ),
-                  DropdownButtonFormField<String>(
-                    value: _repeat,
-                    items: const [
-                      DropdownMenuItem(value: 'daily', child: Text('Daily')),
-                      DropdownMenuItem(value: 'weekly', child: Text('Weekly')),
-                    ],
-                    onChanged: (v) => setState(() => _repeat = v ?? 'daily'),
-                    decoration: const InputDecoration(labelText: 'Repeat'),
-                  ),
-                ],
-              ),
-            ],
+                  child: _rawLogs.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'ĐANG CHỜ TÍN HIỆU NODE...',
+                            style: TextStyle(
+                              color: Colors.white24,
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.1,
+                            ),
+                          ),
+                        )
+                      : ListView.builder(
+                          physics: const BouncingScrollPhysics(),
+                          itemCount: _rawLogs.length,
+                          itemBuilder: (ctx, i) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
+                              child: Text(
+                                _rawLogs[i],
+                                style: const TextStyle(
+                                  color: Color(0xFF34D399),
+                                  fontFamily: 'Courier',
+                                  fontSize: 11,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 40),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLegendItem(String label, Color color) {
+    return Row(
+      children: [
+        Container(
+          width: 12,
+          height: 4,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
           ),
         ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed:
-              (_loadingDevices ||
-                  (!_loadingDevices &&
-                      _devices.isEmpty &&
-                      widget.existing == null))
-              ? null
-              : _submit,
-          child: const Text('Save'),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white54,
+            fontSize: 11,
+          ),
         ),
       ],
     );
   }
+}
+
+class DoubleLineChartPainter extends CustomPainter {
+  final List<SensorData> data;
+  DoubleLineChartPainter({required this.data});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final gridPaint = Paint()
+      ..color = Colors.white12
+      ..strokeWidth = 0.5;
+
+    // Draw horizontal grid lines
+    const gridLines = 4;
+    for (int i = 0; i <= gridLines; i++) {
+      final y = (size.height / gridLines) * i;
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+    }
+
+    // Fallback data if API history is empty
+    final List<double> tempPoints = [];
+    final List<double> soilPoints = [];
+
+    if (data.isEmpty) {
+      tempPoints.addAll([25.0, 26.2, 27.4, 28.1, 27.0, 26.5]);
+      soilPoints.addAll([50.0, 51.5, 52.0, 53.0, 52.5, 52.0]);
+    } else {
+      // API reads starting from newest. Reverse to plot chronological order
+      final list = data.reversed.toList();
+      for (final s in list) {
+        tempPoints.add(s.temperature ?? 27.4);
+        soilPoints.add(s.soilMoisture ?? 52.0);
+      }
+    }
+
+    if (tempPoints.length < 2) return;
+
+    // Temp range: 15 to 35
+    const double minTemp = 15;
+    const double maxTemp = 35;
+    final double tempSpan = maxTemp - minTemp;
+
+    // Soil range: 30 to 70
+    const double minSoil = 30;
+    const double maxSoil = 70;
+    final double soilSpan = maxSoil - minSoil;
+
+    final tempPath = Path();
+    final soilPath = Path();
+
+    final tempPaint = Paint()
+      ..color = const Color(0xFFF97316)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round;
+
+    final soilPaint = Paint()
+      ..color = const Color(0xFF10B981)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round;
+
+    final stepX = size.width / (tempPoints.length - 1);
+
+    for (int i = 0; i < tempPoints.length; i++) {
+      final x = stepX * i;
+
+      // Map temp to Y coordinate
+      final tVal = tempPoints[i].clamp(minTemp, maxTemp);
+      final yTemp = size.height - ((tVal - minTemp) / tempSpan) * size.height;
+
+      // Map soil to Y coordinate
+      final sVal = soilPoints[i].clamp(minSoil, maxSoil);
+      final ySoil = size.height - ((sVal - minSoil) / soilSpan) * size.height;
+
+      if (i == 0) {
+        tempPath.moveTo(x, yTemp);
+        soilPath.moveTo(x, ySoil);
+      } else {
+        tempPath.lineTo(x, yTemp);
+        soilPath.lineTo(x, ySoil);
+      }
+    }
+
+    canvas.drawPath(tempPath, tempPaint);
+    canvas.drawPath(soilPath, soilPaint);
+
+    // Draw little marker circles for the last/latest point
+    final lastX = size.width;
+    final lastTVal = tempPoints.last.clamp(minTemp, maxTemp);
+    final lastYTemp = size.height - ((lastTVal - minTemp) / tempSpan) * size.height;
+
+    final lastSVal = soilPoints.last.clamp(minSoil, maxSoil);
+    final lastYSoil = size.height - ((lastSVal - minSoil) / soilSpan) * size.height;
+
+    final markerOuterPaint = Paint()..style = PaintingStyle.fill;
+    final markerInnerPaint = Paint()..style = PaintingStyle.fill..color = Colors.white;
+
+    // Temp marker
+    markerOuterPaint.color = const Color(0xFFF97316);
+    canvas.drawCircle(Offset(lastX, lastYTemp), 6, markerOuterPaint);
+    canvas.drawCircle(Offset(lastX, lastYTemp), 3, markerInnerPaint);
+
+    // Soil marker
+    markerOuterPaint.color = const Color(0xFF10B981);
+    canvas.drawCircle(Offset(lastX, lastYSoil), 6, markerOuterPaint);
+    canvas.drawCircle(Offset(lastX, lastYSoil), 3, markerInnerPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }

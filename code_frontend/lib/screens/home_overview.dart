@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import '../services/api.dart';
-import '../services/notification_service.dart';
 import '../models/device.dart';
 import '../models/sensor_data.dart';
 import 'alerts_list_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class HomeOverviewPage extends StatefulWidget {
   const HomeOverviewPage({super.key});
@@ -15,34 +15,33 @@ class HomeOverviewPage extends StatefulWidget {
   State<HomeOverviewPage> createState() => _HomeOverviewPageState();
 }
 
-class _HomeOverviewPageState extends State<HomeOverviewPage> with SingleTickerProviderStateMixin {
+class _HomeOverviewPageState extends State<HomeOverviewPage> {
   bool _loading = true;
   List<Device> _devices = [];
   final Map<String, SensorData?> _latest = {}; // deviceId -> latest reading
-  final Map<String, List<SensorData>> _history = {}; // recent readings per device
   String? _error;
   final Map<String, StreamSubscription> _sseSubs = {};
   int _sseActive = 0;
-  final Set<String> _shownAlertIds = {}; // track shown alerts to avoid duplicates
+  final Set<String> _shownAlertIds = {};
   Timer? _alertCheckTimer;
 
-  // Animation controller for staggered list entrance
-  late AnimationController _listController;
+  // Manual relay states (cached locally for instant feedback)
+  final Map<String, bool> _pumpState = {};
+  final Map<String, bool> _fanState = {};
+  final Map<String, bool> _lightState = {};
+  final Map<String, bool> _pendingStates = {}; // target_deviceId -> isPending
+  List<dynamic> _schedules = [];
+  String _opMode = 'auto';
 
   @override
   void initState() {
     super.initState();
-    _listController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1000),
-    );
     _loadOverview();
     _startAlertPolling();
   }
 
   @override
   void dispose() {
-    _listController.dispose();
     _alertCheckTimer?.cancel();
     for (final s in _sseSubs.values) {
       try {
@@ -71,20 +70,16 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> with SingleTickerPr
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(alert['message'] ?? 'Alert triggered'),
+                content: Text(alert['message'] ?? 'Phát hiện cảnh báo mới!'),
                 behavior: SnackBarBehavior.floating,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 backgroundColor: alert['type'] == 'error' ? Colors.redAccent : Colors.orangeAccent,
               ),
             );
-            NotificationService().showLocalNotification(
-              title: 'Smart Farm Alert',
-              body: alert['message'] ?? 'Alert triggered',
-            );
           }
         }
       }
-    } catch (e) {}
+    } catch (_) {}
   }
 
   void _subscribeSse(String? token, Device device) {
@@ -102,23 +97,36 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> with SingleTickerPr
               final s = SensorData.fromJson(evt);
               setState(() {
                 _latest[device.id] = s;
-                final list = _history[device.id] ?? [];
-                list.insert(0, s);
-                if (list.length > 200) list.removeLast();
-                _history[device.id] = list;
               });
             }
-            if (evt['status'] is String) {
-              final newStatus = evt['status'] as String;
-              setState(() {
-                final idx = _devices.indexWhere((d) => d.id == device.id);
-                if (idx >= 0) {
-                  final d = _devices[idx];
-                  _devices[idx] = d.copyWith(status: newStatus);
-                }
-              });
+            // Sync relay states
+            final relayFan = evt['relayFan'];
+            final relayLight = evt['relayLight'];
+            final relayPump = evt['relayPump'];
+            bool changed = false;
+            if (relayFan is String) {
+              bool v = relayFan.toUpperCase() == 'ON';
+              if (_fanState[device.id] != v) {
+                _fanState[device.id] = v;
+                changed = true;
+              }
             }
-          } catch (e) {}
+            if (relayLight is String) {
+              bool v = relayLight.toUpperCase() == 'ON';
+              if (_lightState[device.id] != v) {
+                _lightState[device.id] = v;
+                changed = true;
+              }
+            }
+            if (relayPump is String) {
+              bool v = relayPump.toUpperCase() == 'ON';
+              if (_pumpState[device.id] != v) {
+                _pumpState[device.id] = v;
+                changed = true;
+              }
+            }
+            if (changed) setState(() {});
+          } catch (_) {}
         },
         onDone: () {
           _sseSubs.remove(externalId);
@@ -131,7 +139,7 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> with SingleTickerPr
       setState(() {
         _sseActive = _sseActive + 1;
       });
-    } catch (e) {}
+    } catch (_) {}
   }
 
   Future<void> _loadOverview() async {
@@ -146,26 +154,51 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> with SingleTickerPr
 
       final futures = _devices.map((d) async {
         try {
-          final raw = await Api.getSensorData(auth.accessToken ?? '', d.id, limit: 20);
+          final raw = await Api.getSensorData(auth.accessToken ?? '', d.id, limit: 1);
           if (raw.isNotEmpty) {
             final list = raw.map((e) => SensorData.fromJson(e as Map<String, dynamic>)).toList();
-            _history[d.id] = list;
             _latest[d.id] = list.first;
           } else {
-            _history[d.id] = [];
             _latest[d.id] = null;
           }
+
+          // Fetch recent relay commands
+          final cmds = await Api.listCommands(auth.accessToken ?? '', deviceId: d.id);
+          for (final c in cmds) {
+            if (c is Map<String, dynamic>) {
+              final target = c['target'] as String?;
+              final action = c['action'] as String?;
+              final isOn = action?.toUpperCase() == 'ON';
+              if (target == 'pump') _pumpState[d.id] = isOn;
+              if (target == 'fan') _fanState[d.id] = isOn;
+              if (target == 'light') _lightState[d.id] = isOn;
+            }
+          }
         } catch (_) {
-          _history[d.id] = [];
           _latest[d.id] = null;
         }
       }).toList();
 
       await Future.wait(futures);
+
+      if (_devices.isNotEmpty) {
+        final d = _devices.first;
+        try {
+          final list = await Api.getSchedules(auth.accessToken ?? '', deviceId: d.id);
+          _schedules = list;
+        } catch (_) {}
+
+        if (d.autoFanEnabled || d.autoPumpEnabled || d.autoLightEnabled) {
+          _opMode = 'auto';
+        } else {
+          final prefs = await SharedPreferences.getInstance();
+          _opMode = prefs.getString('device_mode_${d.id}') ?? 'manual';
+        }
+      }
+
       for (final d in _devices) {
         _subscribeSse(auth.accessToken, d);
       }
-      _listController.forward(from: 0);
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -173,449 +206,704 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> with SingleTickerPr
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final auth = Provider.of<AuthService>(context);
-    final theme = Theme.of(context);
-    final userName = auth.user != null ? auth.user!['name'] ?? 'User' : 'User';
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAF7),
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          // Elegant Header
-          SliverAppBar(
-            expandedHeight: 180,
-            floating: false,
-            pinned: true,
-            backgroundColor: theme.colorScheme.primary,
-            flexibleSpace: FlexibleSpaceBar(
-              titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
-              title: Text(
-                'Smart Farm Overview',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                  shadows: [Shadow(color: Colors.black26, blurRadius: 4)],
-                ),
-              ),
-              background: Stack(
-                fit: StackFit.expand,
-                children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          theme.colorScheme.primary,
-                          theme.colorScheme.primary.withBlue(100),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    right: -50,
-                    top: -50,
-                    child: Icon(Icons.eco, size: 200, color: Colors.white.withOpacity(0.1)),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 60, 20, 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Welcome back,',
-                          style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 14),
-                        ),
-                        Text(
-                          userName,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 28,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.notifications_outlined, color: Colors.white),
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const AlertsListPage()),
-                ),
-              ),
-              const SizedBox(width: 8),
-            ],
-          ),
-
-          // Main Content
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildStatusRow(theme),
-                  const SizedBox(height: 20),
-                  Text(
-                    'Connected Devices',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // Devices List with staggered animation
-          if (_loading)
-            const SliverFillRemaining(child: Center(child: CircularProgressIndicator()))
-          else if (_error != null)
-            SliverFillRemaining(child: Center(child: Text('Error: $_error')))
-          else if (_devices.isEmpty)
-            const SliverFillRemaining(child: Center(child: Text('No devices found')))
-          else
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final d = _devices[index];
-                    return AnimatedBuilder(
-                      animation: _listController,
-                      builder: (context, child) {
-                        final delay = (index / _devices.length);
-                        final animation = CurvedAnimation(
-                          parent: _listController,
-                          curve: Interval(delay * 0.5, 0.5 + delay * 0.5, curve: Curves.easeOutCubic),
-                        );
-                        return Opacity(
-                          opacity: animation.value,
-                          child: Transform.translate(
-                            offset: Offset(0, 30 * (1 - animation.value)),
-                            child: child,
-                          ),
-                        );
-                      },
-                      child: _buildDeviceCard(context, d),
-                    );
-                  },
-                  childCount: _devices.length,
-                ),
-              ),
-            ),
-
-          const SliverToBoxAdapter(child: SizedBox(height: 80)),
-        ],
-      ),
-    );
+  Future<void> _toggleState(Device d, String target, bool nextState) async {
+    final pendingKey = '${target}_${d.id}';
+    final nextAction = nextState ? 'ON' : 'OFF';
+    setState(() {
+      _pendingStates[pendingKey] = true;
+    });
+    try {
+      final auth = Provider.of<AuthService>(context, listen: false);
+      await Api.createCommand(auth.accessToken ?? '', {
+        'deviceId': d.id,
+        'target': target,
+        'action': nextAction,
+      });
+      setState(() {
+        if (target == 'pump') _pumpState[d.id] = nextState;
+        if (target == 'fan') _fanState[d.id] = nextState;
+        if (target == 'light') _lightState[d.id] = nextState;
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Không thể điều khiển thiết bị: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _pendingStates[pendingKey] = false;
+        });
+      }
+    }
   }
 
-  Widget _buildStatusRow(ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4)),
-        ],
-      ),
-      child: Row(
-        children: [
-          _statusItem(
-            Icons.wifi_tethering,
-            'Live Feed',
-            _sseActive > 0 ? 'Connected' : 'Idle',
-            _sseActive > 0 ? Colors.green : Colors.grey,
-          ),
-          const VerticalDivider(),
-          _statusItem(
-            Icons.devices,
-            'Devices',
-            '${_devices.length} Total',
-            theme.colorScheme.primary,
-          ),
-          const VerticalDivider(),
-          _statusItem(
-            Icons.warning_amber_rounded,
-            'Alerts',
-            'All Clean',
-            Colors.orange,
-          ),
-        ],
-      ),
-    );
+  String _getInitials(String name) {
+    List<String> parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.length >= 2) {
+      String last = parts[parts.length - 1];
+      String prev = parts[parts.length - 2];
+      return ((prev.isNotEmpty ? prev[0] : '') + (last.isNotEmpty ? last[0] : '')).toUpperCase();
+    }
+    return name.isNotEmpty ? name.substring(0, (name.length > 2 ? 2 : name.length)).toUpperCase() : 'US';
   }
 
-  Widget _statusItem(IconData icon, String label, String value, Color color) {
-    return Expanded(
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(height: 4),
-          Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
-          Text(
-            value,
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
-    );
+  String _getTinyMLDecision(SensorData? data) {
+    final soil = data?.soilMoisture ?? 52.0;
+    final temp = data?.temperature ?? 27.4;
+    if (soil < 45) {
+      return 'Khuyên: Đất khô, cần bật vòi tưới';
+    } else if (temp > 30) {
+      return 'Khuyên: Nhiệt độ cao, bật quạt làm mát';
+    } else if (soil > 60) {
+      return 'Khuyên: Đất ẩm nhiều, giữ nguyên';
+    }
+    return 'Khuyên: Đất đủ nước, giữ nguyên';
   }
 
-  Widget _buildDeviceCard(BuildContext context, Device d) {
-    final s = _latest[d.id];
-    final hist = _history[d.id] ?? [];
-    final theme = Theme.of(context);
-    final isOnline = d.status == 'online';
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2)),
-        ],
+  void _showProfileSettings(BuildContext context, AuthService auth) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF10141D),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Column(
-          children: [
-            // Card Header
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
+      builder: (context) {
+        final email = auth.user != null ? auth.user!['email'] ?? '' : '';
+        final name = auth.user != null ? auth.user!['name'] ?? '' : 'Manager';
+        return Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: (isOnline ? Colors.green : Colors.grey).withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.sensors,
-                      color: isOnline ? Colors.green : Colors.grey,
-                      size: 20,
+                  CircleAvatar(
+                    radius: 30,
+                    backgroundColor: const Color(0xFF10B981).withOpacity(0.2),
+                    child: Text(
+                      _getInitials(name),
+                      style: const TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.bold, fontSize: 20),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 16),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          d.name,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                        ),
-                        if (d.location != null)
-                          Text(
-                            d.location!,
-                            style: const TextStyle(fontSize: 12, color: Colors.grey),
-                          ),
+                        Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white)),
+                        Text(email, style: const TextStyle(color: Colors.white54, fontSize: 14)),
                       ],
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: isOnline ? Colors.green.shade50 : Colors.red.shade50,
-                      borderRadius: BorderRadius.circular(8),
+                ],
+              ),
+              const Divider(color: Color(0xFF1E2533), height: 32),
+              ListTile(
+                leading: const Icon(Icons.notifications_outlined, color: Color(0xFF10B981)),
+                title: const Text('Nhật ký cảnh báo', style: TextStyle(color: Colors.white)),
+                trailing: const Icon(Icons.chevron_right, color: Colors.white54),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.pushNamed(context, '/alerts');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.sensors_outlined, color: Color(0xFF10B981)),
+                title: const Text('Giả lập cảm biến (Simulation)', style: TextStyle(color: Colors.white)),
+                trailing: const Icon(Icons.chevron_right, color: Colors.white54),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.pushNamed(context, '/send-sensor');
+                },
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent.withOpacity(0.1),
+                    foregroundColor: Colors.redAccent,
+                    elevation: 0,
+                    side: const BorderSide(color: Colors.redAccent, width: 0.8),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    auth.logout();
+                  },
+                  icon: const Icon(Icons.logout),
+                  label: const Text('ĐĂNG XUẤT HỆ THỐNG', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = Provider.of<AuthService>(context);
+    final userName = auth.user != null ? auth.user!['name'] ?? 'User' : 'User';
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF0C0F17),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? Center(child: Text('Đã xảy ra lỗi: $_error', style: const TextStyle(color: Colors.red)))
+              : _devices.isEmpty
+                  ? const Center(child: Text('Không tìm thấy thiết bị nào'))
+                  : _buildDashboard(userName, auth),
+    );
+  }
+
+  Widget _buildDashboard(String userName, AuthService auth) {
+    final activeDevice = _devices.first;
+    final latestData = _latest[activeDevice.id];
+
+    // Determine current operation mode
+    String modeText = 'Tự động';
+    if (_opMode == 'auto') {
+      modeText = 'Tự động';
+    } else if (_opMode == 'scheduled') {
+      modeText = 'Hẹn giờ';
+    } else {
+      modeText = 'Thủ công';
+    }
+
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 50, 20, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Elegant Custom Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'NÔNG TRẠI THÔNG MINH',
+                    style: TextStyle(
+                      color: Color(0xFF9EADBC),
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2,
                     ),
-                    child: Text(
-                      d.status?.toUpperCase() ?? 'OFFLINE',
-                      style: TextStyle(
-                        color: isOnline ? Colors.green : Colors.red,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Text(
+                        userName,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF10B981),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ),
-
-            // Metrics Grid
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: GridView.count(
-                shrinkWrap: true,
-                crossAxisCount: 2,
-                childAspectRatio: 2.2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                physics: const NeverScrollableScrollPhysics(),
-                children: [
-                  _newMetricTile(Icons.thermostat, 'Temp', s?.temperature, '°C', Colors.orange),
-                  _newMetricTile(Icons.water_drop, 'Hum', s?.humidity, '%', Colors.blue),
-                  _newMetricTile(Icons.light_mode, 'Lux', s?.lux, '', Colors.amber),
-                  _newMetricTile(Icons.grass, 'Soil', s?.soilMoisture, '', Colors.brown),
-                ],
-              ),
-            ),
-
-            // Charts Section (Expandable)
-            if (hist.isNotEmpty)
-              Theme(
-                data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                child: ExpansionTile(
-                  title: const Text('Historical Charts', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                  childrenPadding: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
-                  children: [
-                    _buildAnimatedChart('Temperature', hist.map((e) => e.temperature).toList(), '°C', Colors.orange),
-                    const SizedBox(height: 12),
-                    _buildAnimatedChart('Humidity', hist.map((e) => e.humidity).toList(), '%', Colors.blue),
-                  ],
+              InkWell(
+                onTap: () => _showProfileSettings(context, auth),
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF161B26),
+                    border: Border.all(color: const Color(0xFF10B981).withOpacity(0.3), width: 1.5),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    _getInitials(userName),
+                    style: const TextStyle(
+                      color: Color(0xFF10B981),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
                 ),
               ),
-          ],
-        ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // TinyML Decision Card
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF161B26),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFF10B981).withOpacity(0.2), width: 1),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.psychology_outlined, color: Color(0xFF10B981), size: 18),
+                          const SizedBox(width: 6),
+                          const Text(
+                            'TINYML DECISION',
+                            style: TextStyle(
+                              color: Color(0xFF10B981),
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.1,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _getTinyMLDecision(latestData),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF10B981).withOpacity(0.5),
+                        blurRadius: 8,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Metrics 2x2 Grid
+          GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 2,
+            childAspectRatio: 1.4,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            children: [
+              _buildMetricCard(
+                'NHIỆT ĐỘ',
+                latestData?.temperature?.toStringAsFixed(1) ?? '27.4',
+                '°C',
+                Icons.thermostat,
+                const Color(0xFFF97316), // Orange
+              ),
+              _buildMetricCard(
+                'ẨM KHÔNG KHÍ',
+                latestData?.humidity?.toStringAsFixed(0) ?? '68',
+                '%',
+                Icons.water_drop,
+                const Color(0xFF3B82F6), // Blue
+              ),
+              _buildMetricCard(
+                'ẨM ĐẤT',
+                latestData?.soilMoisture?.toStringAsFixed(0) ?? '52',
+                '%',
+                Icons.spa,
+                const Color(0xFF10B981), // Green
+              ),
+              _buildMetricCard(
+                'ÁNH SÁNG',
+                latestData?.lux?.toStringAsFixed(0) ?? '4200',
+                'lx',
+                Icons.wb_sunny,
+                const Color(0xFFF59E0B), // Amber/Yellow
+              ),
+            ],
+          ),
+          const SizedBox(height: 32),
+
+          // Handheld Devices List Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'THIẾT BỊ CẦM TAY',
+                style: TextStyle(
+                  color: Color(0xFF9EADBC),
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.1,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10141D),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  'Chế độ: $modeText',
+                  style: const TextStyle(
+                    color: Color(0xFF10B981),
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Three Device Rows
+          _buildDeviceRow(
+            activeDevice,
+            'pump',
+            'Vòi tưới',
+            'Máy bơm nước',
+            Icons.power_settings_new,
+            _pumpState[activeDevice.id] ?? false,
+          ),
+          _buildDeviceRow(
+            activeDevice,
+            'light',
+            'Đèn chiếu',
+            'Đèn quang hợp',
+            Icons.wb_sunny_outlined,
+            _lightState[activeDevice.id] ?? false,
+          ),
+          _buildDeviceRow(
+            activeDevice,
+            'fan',
+            'Quạt hút',
+            'Quạt thông gió',
+            Icons.analytics_outlined,
+            _fanState[activeDevice.id] ?? false,
+          ),
+          const SizedBox(height: 24),
+          _buildNextScheduleSection(),
+          const SizedBox(height: 40),
+        ],
       ),
     );
   }
 
-  Widget _newMetricTile(IconData icon, String label, double? value, String unit, Color color) {
+  Widget _buildMetricCard(String label, String value, String unit, IconData icon, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8F9FA),
-        borderRadius: BorderRadius.circular(12),
+        color: const Color(0xFF161B26),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF222938), width: 0.8),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Icon(icon, size: 18, color: color.withOpacity(0.7)),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
-                Text(
-                  value != null ? '${value.toStringAsFixed((label == 'Temp' || label == 'Hum') ? 2 : 1)}$unit' : '--',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Color(0xFF9EADBC),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
                 ),
-              ],
-            ),
+              ),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: color, size: 16),
+              ),
+            ],
+          ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                value,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                unit,
+                style: const TextStyle(
+                  color: Color(0xFF9EADBC),
+                  fontSize: 14,
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildAnimatedChart(String title, List<double?> values, String unit, Color color) {
-    final nums = values.where((v) => v != null).map((v) => v!).toList();
-    final minVal = nums.isNotEmpty ? nums.reduce((a, b) => a < b ? a : b) : 0.0;
-    final maxVal = nums.isNotEmpty ? nums.reduce((a, b) => a > b ? a : b) : 0.0;
+  Widget _buildDeviceRow(Device d, String target, String title, String subtitle, IconData icon, bool isOn) {
+    final isAutoOrScheduled = d.autoFanEnabled || d.autoPumpEnabled || d.autoLightEnabled;
+    final pendingKey = '${target}_${d.id}';
+    final isPending = _pendingStates[pendingKey] ?? false;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF161B26),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF222938), width: 0.8),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0C0F17),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: Colors.white, size: 20),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    color: Color(0xFF9EADBC),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (isAutoOrScheduled)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF271C10),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFD97706).withOpacity(0.4), width: 1),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: const [
+                  Icon(Icons.lock_outline, color: Color(0xFFD97706), size: 12),
+                  SizedBox(width: 4),
+                  Text(
+                    'KHÓA (AI)',
+                    style: TextStyle(
+                      color: Color(0xFFD97706),
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else if (isPending)
+            const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF10B981)),
+            )
+          else
+            Switch.adaptive(
+              value: isOn,
+              activeColor: const Color(0xFF10B981),
+              onChanged: (val) => _toggleState(d, target, val),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNextScheduleSection() {
+    // Find the next upcoming active schedule
+    Map<String, dynamic>? nextSched;
+    DateTime? nextSchedTime;
+
+    final now = DateTime.now();
+    for (final s in _schedules) {
+      if (s is Map<String, dynamic> && s['active'] == true && s['time'] != null) {
+        try {
+          final schedTime = DateTime.parse(s['time']).toLocal();
+          // Find next occurrence
+          var occurrence = DateTime(now.year, now.month, now.day, schedTime.hour, schedTime.minute);
+          if (occurrence.isBefore(now)) {
+            occurrence = occurrence.add(const Duration(days: 1));
+          }
+          if (nextSchedTime == null || occurrence.isBefore(nextSchedTime)) {
+            nextSchedTime = occurrence;
+            nextSched = s;
+          }
+        } catch (_) {}
+      }
+    }
+
+    String timeLabel = '06:00 SÁNG MAI';
+    String actionLabel = 'TƯỚI NƯỚC CHU KỲ HÀNG NGÀY';
+    String durationLabel = '10 phút';
+
+    if (nextSched != null && nextSchedTime != null) {
+      timeLabel = _formatNextScheduleTime(nextSchedTime);
+      
+      String targetName = 'TÁC VỤ';
+      if (nextSched['target'] == 'pump') targetName = 'TƯỚI NƯỚC';
+      if (nextSched['target'] == 'light') targetName = 'BẬT ĐÈN CHIẾU';
+      if (nextSched['target'] == 'fan') targetName = 'BẬT QUẠT HÚT';
+
+      String repeatName = 'HÀNG NGÀY';
+      if (nextSched['repeat'] == 'weekly') repeatName = 'HÀNG TUẦN';
+
+      actionLabel = '$targetName CHU KỲ $repeatName';
+      durationLabel = nextSched['name'] != null && nextSched['name'].toString().isNotEmpty
+          ? nextSched['name']
+          : '12 tiếng';
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(title, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
-            if (nums.isNotEmpty)
-              Text('${nums.first.toStringAsFixed((title == 'Temperature' || title == 'Humidity') ? 2 : 1)}$unit', style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.bold)),
+          children: const [
+            Icon(Icons.access_time, color: Color(0xFF10B981), size: 16),
+            SizedBox(width: 6),
+            Text(
+              'LỊCH TRÌNH TIẾP THEO',
+              style: TextStyle(
+                color: Color(0xFF9EADBC),
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.1,
+              ),
+            ),
           ],
         ),
-        const SizedBox(height: 8),
-        SizedBox(
-          height: 60,
+        const SizedBox(height: 12),
+        Container(
           width: double.infinity,
-          child: CustomPaint(
-            painter: _CompactChartPainter(values, color),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF161B26),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFF222938), width: 0.8),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      timeLabel,
+                      style: const TextStyle(
+                        color: Color(0xFF10B981),
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      actionLabel,
+                      style: const TextStyle(
+                        color: Color(0xFF9EADBC),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0C0F17),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  durationLabel,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ],
     );
   }
-}
 
-class _CompactChartPainter extends CustomPainter {
-  final List<double?> values;
-  final Color color;
-  _CompactChartPainter(this.values, this.color);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (values.isEmpty) return;
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.5
-      ..strokeCap = StrokeCap.round
-      ..color = color;
-
-    final fillPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [color.withOpacity(0.2), color.withOpacity(0)],
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
-
-    final nums = values.where((v) => v != null).map((v) => v!).toList();
-    if (nums.isEmpty) return;
-    final minv = nums.reduce((a, b) => a < b ? a : b);
-    final maxv = nums.reduce((a, b) => a > b ? a : b);
-    final span = (maxv - minv) == 0 ? 1.0 : (maxv - minv);
-
-    final path = Path();
-    final fillPath = Path();
-
-    for (var i = 0; i < values.length; i++) {
-      final v = values[i] ?? minv;
-      final x = (i / (values.length - 1).clamp(1, double.infinity)) * size.width;
-      final y = size.height - ((v - minv) / span) * size.height;
-      if (i == 0) {
-        path.moveTo(x, y);
-        fillPath.moveTo(x, size.height);
-        fillPath.lineTo(x, y);
-      } else {
-        path.lineTo(x, y);
-        fillPath.lineTo(x, y);
-      }
+  String _formatNextScheduleTime(DateTime scheduledTime) {
+    final localTime = scheduledTime.toLocal();
+    final hour = localTime.hour;
+    final min = localTime.minute.toString().padLeft(2, '0');
+    final formattedHour = hour.toString().padLeft(2, '0');
+    
+    final timeStr = '$formattedHour:$min';
+    
+    final now = DateTime.now();
+    final todayTime = DateTime(now.year, now.month, now.day, localTime.hour, localTime.minute);
+    
+    String dayStr = 'TỐI NAY';
+    if (hour >= 4 && hour < 12) {
+      dayStr = now.isBefore(todayTime) ? 'SÁNG NAY' : 'SÁNG MAI';
+    } else if (hour >= 12 && hour < 18) {
+      dayStr = now.isBefore(todayTime) ? 'CHIỀU NAY' : 'CHIỀU MAI';
+    } else if (hour >= 18 && hour < 22) {
+      dayStr = now.isBefore(todayTime) ? 'TỐI NAY' : 'TỐI MAI';
+    } else {
+      dayStr = now.isBefore(todayTime) ? 'ĐÊM NAY' : 'ĐÊM MAI';
     }
-    fillPath.lineTo(size.width, size.height);
-    fillPath.close();
-
-    canvas.drawPath(fillPath, fillPaint);
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
-}
-
-// Keeping old chart classes for compatibility if referenced elsewhere
-class LineChartWithStats extends StatelessWidget {
-  final List<double?> data;
-  final double minVal;
-  final double maxVal;
-
-  const LineChartWithStats({
-    super.key,
-    required this.data,
-    required this.minVal,
-    required this.maxVal,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _CompactChartPainter(data, Theme.of(context).colorScheme.primary),
-      size: Size.infinite,
-    );
+    
+    return '$timeStr $dayStr';
   }
 }
