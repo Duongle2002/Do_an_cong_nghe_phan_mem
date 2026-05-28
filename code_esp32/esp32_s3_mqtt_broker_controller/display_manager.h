@@ -5,7 +5,7 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include "config.h"
-#include "../common/shared_protocol.h"
+#include "shared_protocol.h"
 
 enum DisplayNetworkMode {
   DISP_NET_DISCONNECTED,

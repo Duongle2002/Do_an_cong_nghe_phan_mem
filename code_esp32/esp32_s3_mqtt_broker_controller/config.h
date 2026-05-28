@@ -33,7 +33,7 @@ enum OperationalMode {
 const bool RELAY_ACTIVE_HIGH = true;
 
 // Nếu rơ-le phần cứng là ngược cực nhưng muốn hiển thị nhãn ON/OFF đúng thực tế
-const bool RELAY_DISPLAY_INVERT = false;
+const bool RELAY_DISPLAY_INVERT = true;
 
 // --- Cấu hình OLED SSD1306 ---
 #define SCREEN_WIDTH 128

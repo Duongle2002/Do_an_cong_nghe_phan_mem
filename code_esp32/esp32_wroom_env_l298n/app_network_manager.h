@@ -5,8 +5,8 @@
 #include <ArduinoJson.h>
 #include <Preferences.h>
 #include "config.h"
-#include "../common/shared_protocol.h"
-#include "../common/wifi_config_portal.h"
+#include "shared_protocol.h"
+#include "wifi_config_portal.h"
 
 enum NetworkState {
   STATE_INIT,

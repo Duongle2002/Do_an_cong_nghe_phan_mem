@@ -2,8 +2,8 @@
 #include <WiFi.h>
 #include <Preferences.h>
 #include "config.h"
-#include "../common/shared_protocol.h"
-#include "../common/wifi_config_portal.h"
+#include "shared_protocol.h"
+#include "wifi_config_portal.h"
 #include "relay_manager.h"
 #include "display_manager.h"
 #include "app_network_manager.h"

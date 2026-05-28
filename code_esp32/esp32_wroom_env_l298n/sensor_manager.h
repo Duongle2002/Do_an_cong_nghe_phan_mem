@@ -7,7 +7,7 @@
 #include <Adafruit_BMP280.h>   
 #include <BH1750.h>
 #include "config.h"
-#include "../common/shared_protocol.h"
+#include "shared_protocol.h"
 
 class SensorManager {
 public:

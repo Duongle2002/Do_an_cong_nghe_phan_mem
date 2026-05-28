@@ -6,63 +6,11 @@ import MetricChart from '../components/MetricChart'
 import AutomationPanel from '../components/AutomationPanel'
 import SchedulesPanel from '../components/SchedulesPanel'
 import PairingPanel from '../components/PairingPanel'
+import UserProfile from '../components/UserProfile'
+import ControlBox from '../components/ControlBox'
+import DeviceEditModal from '../components/DeviceEditModal'
 
-function ControlBox({ title, icon, state, onChange }) {
-  const isOn = state === 'ON'
-  return (
-    <div className="card" style={{
-      background: isOn
-        ? 'linear-gradient(135deg, rgba(16, 185, 129,0.15), rgba(16, 185, 129,0.05))'
-        : 'var(--border)',
-      borderColor: isOn ? 'rgba(16, 185, 129,0.35)' : 'var(--border)',
-      transition: 'all 0.3s ease',
-      overflow: 'hidden',
-    }}>
-      <div style={{ height: 2, background: isOn ? 'linear-gradient(90deg, #10b981, #34d399)' : 'var(--border)' }} />
-      <div className="card-body" style={{ padding: '14px 16px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 20 }}>{icon}</span>
-            <span style={{ fontWeight: 700, fontSize: 15 }}>{title}</span>
-          </div>
-          <span className={`badge ${isOn ? 'ok' : 'warn'}`} style={{ fontSize: 10 }}>
-            {state}
-          </span>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            className="btn"
-            onClick={() => onChange('ON')}
-            disabled={isOn}
-            style={{
-              flex: 1, justifyContent: 'center',
-              background: isOn ? 'rgba(16, 185, 129,0.25)' : 'transparent',
-              borderColor: isOn ? 'rgba(16, 185, 129,0.5)' : 'var(--border)',
-              color: isOn ? '#81c784' : 'var(--text-dim)',
-              fontSize: 13,
-            }}
-          >
-            Bật
-          </button>
-          <button
-            className="btn"
-            onClick={() => onChange('OFF')}
-            disabled={!isOn}
-            style={{
-              flex: 1, justifyContent: 'center',
-              background: !isOn ? 'rgba(239,83,80,0.15)' : 'transparent',
-              borderColor: !isOn ? 'rgba(239,83,80,0.4)' : 'var(--border)',
-              color: !isOn ? '#ef9a9a' : 'var(--text-dim)',
-              fontSize: 13,
-            }}
-          >
-            Tắt
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
+
 
 const metricDisplay = [
   { key: 'temperature', label: 'Nhiệt độ', unit: '°C', icon: '🌡', color: '#ff7043' },
@@ -73,69 +21,10 @@ const metricDisplay = [
 
 export default function DeviceDetailPage() {
   const { user, logout } = useAuth()
-  const [showProfileMenu, setShowProfileMenu] = useState(false)
-
-  useEffect(() => {
-    if (!showProfileMenu) return;
-    const close = () => setShowProfileMenu(false);
-    window.addEventListener('click', close);
-    return () => window.removeEventListener('click', close);
-  }, [showProfileMenu])
-
-  const userInitials = useMemo(() => {
-    const displayName = user?.name || user?.username || user?.email || 'User'
-    const parts = displayName.split(' ')
-    return parts.map(p => p ? p[0] : '').join('').toUpperCase().slice(0, 2)
-  }, [user])
-
   const navigate = useNavigate()
-  const [showEditModal, setShowEditModal] = useState(false)
-  const [editForm, setEditForm] = useState({ name: '', externalId: '', location: '' })
-  const [editError, setEditError] = useState('')
-  const [editBusy, setEditBusy] = useState(false)
-
   const { id } = useParams()
 
-  useEffect(() => {
-    if (device) {
-      setEditForm({
-        name: device.name || '',
-        externalId: device.externalId || '',
-        location: device.location || '',
-      })
-    }
-  }, [device, showEditModal])
-
-  async function handleEditSubmit(e) {
-    e.preventDefault()
-    setEditError('')
-    if (!editForm.name.trim()) return setEditError('Tên không được để trống')
-    setEditBusy(true)
-    try {
-      const res = await api.put(`/api/devices/${id}`, {
-        name: editForm.name.trim(),
-        externalId: editForm.externalId.trim() || undefined,
-        location: editForm.location.trim(),
-      })
-      setDevice(res.data)
-      setShowEditModal(false)
-      showMsg('Cập nhật thiết bị thành công!', 'ok')
-    } catch (err) {
-      setEditError(err.response?.data?.message || 'Không thể cập nhật thiết bị')
-    } finally {
-      setEditBusy(false)
-    }
-  }
-
-  async function handleDeleteDevice() {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa thiết bị này không?')) return;
-    try {
-      await api.delete(`/api/devices/${id}`);
-      navigate('/devices');
-    } catch (err) {
-      showMsg(err.response?.data?.message || 'Xóa thiết bị thất bại', 'err');
-    }
-  }
+  const [showEditModal, setShowEditModal] = useState(false)
   const [device, setDevice] = useState(null)
   const [data, setData] = useState([])
   const [limit, setLimit] = useState(100)
@@ -150,6 +39,16 @@ export default function DeviceDetailPage() {
   const reconnectAttemptsRef = useRef(0)
 
   function showMsg(text, type = 'ok') { setMsg(text); setMsgType(type); setTimeout(() => setMsg(''), 3000) }
+
+  async function handleDeleteDevice() {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa thiết bị này không?')) return;
+    try {
+      await api.delete(`/api/devices/${id}`);
+      navigate('/devices');
+    } catch (err) {
+      showMsg(err.response?.data?.message || 'Xóa thiết bị thất bại', 'err');
+    }
+  }
 
   async function loadDevice() {
     try {
@@ -221,6 +120,7 @@ export default function DeviceDetailPage() {
           if (payload.relayLight) setCmdLight(payload.relayLight)
           if (payload.relayPump) setCmdPump(payload.relayPump)
           if (payload.status) setDevice(prev => prev ? { ...prev, status: payload.status } : prev)
+          if (payload.opMode) setDevice(prev => prev ? { ...prev, opMode: payload.opMode } : prev)
           
           const hasSensorData = payload.temperature !== undefined || 
                                 payload.humidity !== undefined || 
@@ -297,73 +197,7 @@ export default function DeviceDetailPage() {
           <span>{device.name}</span>
         </div>
 
-        <div 
-          className="user-profile" 
-          style={{ position: 'relative', cursor: 'pointer' }}
-          onClick={(e) => { e.stopPropagation(); setShowProfileMenu(!showProfileMenu); }}
-        >
-          <div className="user-profile-info">
-            <div className="user-profile-name">{user?.name || user?.username || user?.email || 'User'}</div>
-          </div>
-          <div className="user-avatar">{userInitials}</div>
-
-          {showProfileMenu && (
-            <div style={{
-              position: 'absolute',
-              top: '100%',
-              right: 0,
-              marginTop: 8,
-              background: '#0f121a',
-              border: '1px solid var(--border)',
-              borderRadius: 12,
-              boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-              padding: '8px',
-              zIndex: 1000,
-              minWidth: 150,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 4
-            }}>
-              <Link to="/devices" style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '8px 12px',
-                borderRadius: 8,
-                fontSize: 13,
-                color: 'var(--text-dim)',
-                transition: 'background 0.2s',
-              }} className="profile-menu-item">
-                <span>🖥️</span> Trang thiết bị
-              </Link>
-              <Link to="/settings" style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '8px 12px',
-                borderRadius: 8,
-                fontSize: 13,
-                color: 'var(--text-dim)',
-                transition: 'background 0.2s',
-              }} className="profile-menu-item">
-                <span>⚙️</span> Cài đặt
-              </Link>
-              <div onClick={logout} style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '8px 12px',
-                borderRadius: 8,
-                fontSize: 13,
-                color: '#ef5350',
-                transition: 'background 0.2s',
-                cursor: 'pointer'
-              }} className="profile-menu-item">
-                <span>🚪</span> Đăng xuất
-              </div>
-            </div>
-          )}
-        </div>
+        <UserProfile user={user} logout={logout} />
       </div>
 
       {/* Device overview card */}
@@ -494,89 +328,13 @@ export default function DeviceDetailPage() {
         </div>
       </div>
 
-      {showEditModal && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(0,0,0,0.7)',
-          backdropFilter: 'blur(4px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 9999,
-          padding: 16
-        }} onClick={() => setShowEditModal(false)}>
-          <div style={{
-            background: '#0f121a',
-            border: '1px solid var(--border)',
-            borderRadius: 16,
-            width: '100%',
-            maxWidth: 480,
-            overflow: 'hidden',
-            boxShadow: '0 24px 48px rgba(0,0,0,0.8)'
-          }} onClick={e => e.stopPropagation()}>
-            <div style={{ height: 3, background: 'linear-gradient(90deg, #10b981, #34d399)' }} />
-            <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>✏️ Chỉnh sửa thiết bị</h3>
-              <button 
-                onClick={() => setShowEditModal(false)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 16 }}
-              >
-                ✕
-              </button>
-            </div>
-            <form onSubmit={handleEditSubmit} style={{ padding: 24, display: 'grid', gap: 16 }}>
-              <div style={{ display: 'grid', gap: 6 }}>
-                <label style={{ fontSize: 13, color: 'var(--text-dim)', fontWeight: 600 }}>Tên thiết bị</label>
-                <input 
-                  type="text" 
-                  value={editForm.name} 
-                  onChange={e => setEditForm(prev => ({ ...prev, name: e.target.value }))}
-                  required 
-                />
-              </div>
-              <div style={{ display: 'grid', gap: 6 }}>
-                <label style={{ fontSize: 13, color: 'var(--text-dim)', fontWeight: 600 }}>External ID (Khớp với cấu hình ESP)</label>
-                <input 
-                  type="text" 
-                  value={editForm.externalId} 
-                  onChange={e => setEditForm(prev => ({ ...prev, externalId: e.target.value }))}
-                  placeholder="esp32-XXXX"
-                />
-              </div>
-              <div style={{ display: 'grid', gap: 6 }}>
-                <label style={{ fontSize: 13, color: 'var(--text-dim)', fontWeight: 600 }}>Vị trí / Khu vực</label>
-                <input 
-                  type="text" 
-                  value={editForm.location} 
-                  onChange={e => setEditForm(prev => ({ ...prev, location: e.target.value }))}
-                />
-              </div>
-              {editError && (
-                <div style={{ color: '#ef5350', fontSize: 12, fontWeight: 500 }}>
-                  ⚠️ {editError}
-                </div>
-              )}
-              <div style={{ display: 'flex', gap: 10, marginTop: 10, justifyContent: 'flex-end' }}>
-                <button 
-                  type="button" 
-                  className="btn btn-outline" 
-                  onClick={() => setShowEditModal(false)}
-                >
-                  Hủy
-                </button>
-                <button 
-                  type="submit" 
-                  className="btn btn-primary" 
-                  disabled={editBusy}
-                >
-                  {editBusy ? 'Đang lưu...' : 'Lưu thay đổi'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <DeviceEditModal
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        device={device}
+        onSaved={(d) => setDevice(d)}
+        showMsg={showMsg}
+      />
     </div>
   )
 }

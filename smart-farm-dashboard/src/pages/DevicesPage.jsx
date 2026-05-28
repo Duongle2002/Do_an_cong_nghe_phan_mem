@@ -2,23 +2,18 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import api from '../api/client'
 import { useAuth } from '../context/AuthContext'
-import AutomationPanel from '../components/AutomationPanel'
-import SchedulesPanel from '../components/SchedulesPanel'
 import DeviceSettingsPanel from '../components/DeviceSettingsPanel'
-import { AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
+import UserProfile from '../components/UserProfile'
+import OverviewTab from '../components/OverviewTab'
+import ControlTab from '../components/ControlTab'
+import AnalyticsTab from '../components/AnalyticsTab'
+import AiTab from '../components/AiTab'
 
 export default function DevicesPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, logout } = useAuth()
-  const [showProfileMenu, setShowProfileMenu] = useState(false)
 
-  useEffect(() => {
-    if (!showProfileMenu) return;
-    const close = () => setShowProfileMenu(false);
-    window.addEventListener('click', close);
-    return () => window.removeEventListener('click', close);
-  }, [showProfileMenu])
 
   // Parse query parameter to render appropriate view tab
   const searchParams = new URLSearchParams(location.search)
@@ -213,6 +208,58 @@ export default function DevicesPage() {
           if (payload.relayFan) setCmdFan(payload.relayFan)
           if (payload.relayLight) setCmdLight(payload.relayLight)
           if (payload.relayPump) setCmdPump(payload.relayPump)
+          if (payload.opMode) setOpMode(payload.opMode)
+
+          // Sync devices array and activeDevice object
+          setDevices(prev => prev.map(d => {
+            if (d.externalId === payload.externalId) {
+              return {
+                ...d,
+                lastFanState: payload.relayFan || d.lastFanState,
+                lastLightState: payload.relayLight || d.lastLightState,
+                lastPumpState: payload.relayPump || d.lastPumpState,
+                opMode: payload.opMode || d.opMode,
+              }
+            }
+            // If the message is from WROOM and this device is the paired S3 controller, also update its opMode and states
+            if (payload.externalId && (payload.externalId.startsWith('esp32-') || payload.externalId.startsWith('wroom-'))) {
+              if (d.externalId && d.externalId.startsWith('esp32s3-') && d.pairedSensorId === payload.externalId) {
+                return {
+                  ...d,
+                  lastFanState: payload.relayFan || d.lastFanState,
+                  lastLightState: payload.relayLight || d.lastLightState,
+                  lastPumpState: payload.relayPump || d.lastPumpState,
+                  opMode: payload.opMode || d.opMode,
+                }
+              }
+            }
+            return d
+          }))
+
+          setActiveDevice(prev => {
+            if (prev && prev.externalId === payload.externalId) {
+              return {
+                ...prev,
+                lastFanState: payload.relayFan || prev.lastFanState,
+                lastLightState: payload.relayLight || prev.lastLightState,
+                lastPumpState: payload.relayPump || prev.lastPumpState,
+                opMode: payload.opMode || prev.opMode,
+              }
+            }
+            // If the message is from WROOM and activeDevice is the paired S3 controller, also update it
+            if (prev && payload.externalId && (payload.externalId.startsWith('esp32-') || payload.externalId.startsWith('wroom-'))) {
+              if (prev.externalId && prev.externalId.startsWith('esp32s3-') && prev.pairedSensorId === payload.externalId) {
+                return {
+                  ...prev,
+                  lastFanState: payload.relayFan || prev.lastFanState,
+                  lastLightState: payload.relayLight || prev.lastLightState,
+                  lastPumpState: payload.relayPump || prev.lastPumpState,
+                  opMode: payload.opMode || prev.opMode,
+                }
+              }
+            }
+            return prev
+          })
 
           const hasSensorData = payload.temperature !== undefined ||
             payload.humidity !== undefined ||
@@ -318,6 +365,7 @@ export default function DevicesPage() {
                   lastFanState: payload.relayFan || d.lastFanState,
                   lastLightState: payload.relayLight || d.lastLightState,
                   lastPumpState: payload.relayPump || d.lastPumpState,
+                  opMode: payload.opMode || d.opMode,
                 }
               }
               return d
@@ -363,7 +411,11 @@ export default function DevicesPage() {
   // Handle changing operational modes
   const handleModeChange = async (mode, customDeviceId = null) => {
     const id = customDeviceId || activeDevice?._id
-    if (!id || modeChanging) return
+    console.log('[handleModeChange] Enter:', { mode, id, modeChanging, opMode })
+    if (!id || modeChanging) {
+      console.warn('[handleModeChange] Bailed out due to missing ID or modeChanging is true:', { id, modeChanging })
+      return
+    }
 
     const prevMode = opMode
     setOpMode(mode) // Optimistic update
@@ -378,31 +430,24 @@ export default function DevicesPage() {
         autoPumpEnabled: isAuto,
         autoLightEnabled: isAuto,
       }
+      console.log('[handleModeChange] PUT payload:', payload)
       const res = await api.put(`/api/devices/${id}`, payload)
+      console.log('[handleModeChange] Success:', res.data)
       setDevices(prev => prev.map(d => d._id === id ? res.data : d))
       if (activeDevice && activeDevice._id === id) {
         setActiveDevice(res.data)
       }
     } catch (e) {
-      // Revert if API fail
+      console.error('[handleModeChange] Failed:', e)
       setOpMode(prevMode)
     } finally {
       setModeChanging(false)
       isRequestActiveRef.current = false
+      console.log('[handleModeChange] Reset modeChanging to false')
     }
   }
 
-  // Dynamic user initials avatar
-  const userInitials = useMemo(() => {
-    const displayName = user?.name || user?.username || user?.email || 'User'
-    const parts = displayName.trim().split(/\s+/)
-    if (parts.length >= 2) {
-      const last = parts[parts.length - 1]
-      const prev = parts[parts.length - 2]
-      return ((prev ? prev[0] : '') + (last ? last[0] : '')).toUpperCase()
-    }
-    return parts.map(p => p ? p[0] : '').join('').toUpperCase().slice(0, 2)
-  }, [user])
+
 
   // Dynamic TinyML Logic prediction
   const tinymlText = useMemo(() => {
@@ -525,25 +570,7 @@ export default function DevicesPage() {
             <h1>HỆ THỐNG GREENBOARD</h1>
             <div className="subtitle">GIÁM SÁT SẢN XUẤT NÔNG NGHIỆP</div>
           </div>
-          <div
-            ref={profileRef}
-            className="user-profile"
-            onClick={() => setShowDropdown(!showDropdown)}
-          >
-            <div className="user-profile-info">
-              <div className="user-profile-title">GIÁM SÁT VIÊN</div>
-              <div className="user-profile-name">{user?.name || user?.username || user?.email || 'User'}</div>
-            </div>
-            <div className="user-avatar">{userInitials}</div>
-            {showDropdown && (
-              <div className="user-profile-dropdown" onClick={(e) => e.stopPropagation()}>
-                <button className="dropdown-item" onClick={logout}>
-                  <span>🚪</span>
-                  <span>Đăng xuất</span>
-                </button>
-              </div>
-            )}
-          </div>
+          <UserProfile user={user} logout={logout} />
         </div>
 
         <div className="card" style={{ marginTop: 20 }}>
@@ -571,7 +598,7 @@ export default function DevicesPage() {
       {/* Universal Dashboard Header */}
       <div className="dashboard-header">
         <div className="dashboard-title-group">
-          <h1>{activeTab === 'overview' ? 'Tổng Quan' : activeTab === 'control' ? 'Điều Khiển' : activeTab === 'map' ? 'Bản Đồ Trang Trại' : activeTab === 'analytics' ? 'Phân Tích Dữ Liệu' : 'Trợ Lý AI'}</h1>
+          <h1>{activeTab === 'overview' ? 'Tổng Quan' : activeTab === 'control' ? 'Điều Khiển' : activeTab === 'analytics' ? 'Phân Tích Dữ Liệu' : activeTab === 'ai' ? 'Trợ Lý AI' : 'Cài Đặt Thiết Bị'}</h1>
           <div className="subtitle">HỆ THỐNG GIÁM SÁT V2.4</div>
         </div>
 
@@ -604,958 +631,71 @@ export default function DevicesPage() {
             ➕ Thêm thiết bị
           </Link>
 
-          <div
-            className="user-profile"
-            style={{ position: 'relative', cursor: 'pointer' }}
-            onClick={(e) => { e.stopPropagation(); setShowProfileMenu(!showProfileMenu); }}
-          >
-            <div className="user-profile-info">
-              <div className="user-profile-title">GIÁM SÁT VIÊN</div>
-              <div className="user-profile-name">{user?.name || user?.username || user?.email || 'User'}</div>
-            </div>
-            <div className="user-avatar">{userInitials}</div>
-
-            {showProfileMenu && (
-              <div style={{
-                position: 'absolute',
-                top: '100%',
-                right: 0,
-                marginTop: 8,
-                background: '#0f121a',
-                border: '1px solid var(--border)',
-                borderRadius: 12,
-                boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-                padding: '8px',
-                zIndex: 1000,
-                minWidth: 150,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 4
-              }}>
-                <Link to="/devices" style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '8px 12px',
-                  borderRadius: 8,
-                  fontSize: 13,
-                  color: 'var(--text-dim)',
-                  transition: 'background 0.2s',
-                }} className="profile-menu-item">
-                  <span>🖥️</span> Trang thiết bị
-                </Link>
-                <Link to="/settings" style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '8px 12px',
-                  borderRadius: 8,
-                  fontSize: 13,
-                  color: 'var(--text-dim)',
-                  transition: 'background 0.2s',
-                }} className="profile-menu-item">
-                  <span>⚙️</span> Cài đặt
-                </Link>
-                <div onClick={logout} style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '8px 12px',
-                  borderRadius: 8,
-                  fontSize: 13,
-                  color: '#ef5350',
-                  transition: 'background 0.2s',
-                  cursor: 'pointer'
-                }} className="profile-menu-item">
-                  <span>🚪</span> Đăng xuất
-                </div>
-              </div>
-            )}
-          </div>
+          <UserProfile user={user} logout={logout} />
         </div>
       </div>
 
       {/* Render selected view tab */}
-      {/* Render selected view tab */}
       {activeTab === 'overview' && (
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-
-          {/* TinyML Banner & Status Label Row */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
-            <div className="tinyml-banner" style={{ marginBottom: 0 }}>
-              {tinymlText}
-            </div>
-
-            {activeDevice && (
-              <span className={`live-indicator ${(deviceStatuses[activeDevice.externalId] || activeDevice.status) === 'online' ? 'connected' : 'disconnected'}`} style={{ fontSize: 12, padding: '6px 14px', borderRadius: 20 }}>
-                <span className="live-dot" />
-                Thiết bị: <strong style={{ marginLeft: 4 }}>{(deviceStatuses[activeDevice.externalId] || activeDevice.status) === 'online' ? 'Online' : 'Offline'}</strong>
-              </span>
-            )}
-          </div>
-
-          {/* Metric cards grid */}
-          <div className="metrics-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-            <div className="metric-card-new">
-              <div className="metric-card-header">
-                <span className="metric-card-title">Nhiệt độ</span>
-                <span className="metric-card-icon" style={{ color: '#ff7043' }}>🌡️</span>
-              </div>
-              <div className="metric-card-value">
-                {latest ? (typeof latest.temperature === 'number' ? latest.temperature.toFixed(2) : latest.temperature) : '26.50'}
-                <span className="metric-card-unit">°C</span>
-              </div>
-            </div>
-
-            <div className="metric-card-new">
-              <div className="metric-card-header">
-                <span className="metric-card-title">Độ ẩm không khí</span>
-                <span className="metric-card-icon" style={{ color: '#29b6f6' }}>💧</span>
-              </div>
-              <div className="metric-card-value">
-                {latest ? (typeof latest.humidity === 'number' ? latest.humidity.toFixed(2) : latest.humidity) : '64.00'}
-                <span className="metric-card-unit">%</span>
-              </div>
-            </div>
-
-            {/* Độ ẩm đất highlighted card with left border */}
-            <div className="metric-card-new highlighted">
-              <div className="metric-card-header">
-                <span className="metric-card-title">Độ ẩm đất</span>
-                <span className="metric-card-icon" style={{ color: '#10b981' }}>🪴</span>
-              </div>
-              <div className="metric-card-value">
-                {latest ? latest.soilMoisture : '50'}
-                <span className="metric-card-unit">%</span>
-              </div>
-            </div>
-
-            <div className="metric-card-new">
-              <div className="metric-card-header">
-                <span className="metric-card-title">Ánh sáng</span>
-                <span className="metric-card-icon" style={{ color: '#ffa726' }}>☀️</span>
-              </div>
-              <div className="metric-card-value">
-                {latest ? latest.lux : '6264'}
-                <span className="metric-card-unit">lux</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Split grid for Telemetry Chart and Device Matrix */}
-          <div className="dashboard-grid">
-            {/* Left Column: Area Chart card */}
-            <div className="card" style={{ padding: 20, marginBottom: 20 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <h3 style={{ fontSize: 14, fontWeight: 700, letterSpacing: '0.3px', textTransform: 'uppercase', color: 'var(--text-dim)' }}>
-                    Lịch sử telemetry (Theo thời gian thực)
-                  </h3>
-                  <span className="badge ok" style={{ fontSize: 9 }}>LIVE DATA</span>
-                </div>
-                <span className={`live-indicator ${sseStatus}`} style={{ fontSize: 11 }}>
-                  <span className="live-dot" />
-                  {sseStatus === 'connected' ? 'Live Streaming' : 'Reconnecting...'}
-                </span>
-              </div>
-
-              <div style={{ height: 260 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartsData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#ff7043" stopOpacity={0.2} />
-                        <stop offset="95%" stopColor="#ff7043" stopOpacity={0.01} />
-                      </linearGradient>
-                      <linearGradient id="colorSoil" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0.01} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid stroke="rgba(255,255,255,0.04)" strokeDasharray="3 3" vertical={false} />
-                    <XAxis
-                      dataKey="timeLabel"
-                      tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 9 }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 9 }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#0f121a', borderColor: 'rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 12 }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="temperature"
-                      name="Nhiệt độ (°C)"
-                      stroke="#ff7043"
-                      strokeWidth={2}
-                      fillOpacity={1}
-                      fill="url(#colorTemp)"
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="soilMoisture"
-                      name="Độ ẩm đất (%)"
-                      stroke="#10b981"
-                      strokeWidth={2}
-                      fillOpacity={1}
-                      fill="url(#colorSoil)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* Right Column: Device Matrix Switches */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {overrideNotice && (
-                <div style={{
-                  background: 'rgba(255, 167, 38, 0.1)',
-                  border: '1px solid rgba(255, 167, 38, 0.2)',
-                  color: '#ffa726',
-                  padding: '10px 16px',
-                  borderRadius: 12,
-                  fontSize: 12,
-                  fontWeight: 600,
-                }}>
-                  ⚠️ {overrideNotice}
-                </div>
-              )}
-
-              <div className="card" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div>
-                  <h3 style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
-                    Device Matrix
-                  </h3>
-                </div>
-
-                {/* Toggles list */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <div className="switch-control">
-                    <div className="switch-control-left">
-                      <div className="switch-control-icon">💦</div>
-                      <div className="switch-control-info">
-                        <span className="switch-control-name">Máy bơm</span>
-                        <span className="switch-control-status">{(s3Controller?.lastPumpState || 'OFF') === 'ON' ? 'RUNNING' : 'STANDBY'}</span>
-                      </div>
-                    </div>
-                    {opMode === 'manual' ? (
-                      <label className="ios-switch">
-                        <input
-                          type="checkbox"
-                          checked={cmdPump === 'ON'}
-                          onChange={() => toggleRelay('pump', cmdPump, s3Controller?._id)}
-                          disabled={!s3Controller}
-                        />
-                        <span className="ios-slider"></span>
-                      </label>
-                    ) : (
-                      <span style={{
-                        fontSize: 11, fontWeight: 700,
-                        color: (s3Controller?.lastPumpState || 'OFF') === 'ON' ? '#10b981' : 'var(--text-muted)',
-                        background: (s3Controller?.lastPumpState || 'OFF') === 'ON' ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.02)',
-                        padding: '3px 8px', borderRadius: 6,
-                        border: `1px solid ${(s3Controller?.lastPumpState || 'OFF') === 'ON' ? 'rgba(16,185,129,0.2)' : 'var(--border)'}`
-                      }}>
-                        {(s3Controller?.lastPumpState || 'OFF') === 'ON' ? 'RUNNING' : 'STANDBY'}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="switch-control">
-                    <div className="switch-control-left">
-                      <div className="switch-control-icon">💡</div>
-                      <div className="switch-control-info">
-                        <span className="switch-control-name">Hệ thống đèn</span>
-                        <span className="switch-control-status">{(s3Controller?.lastLightState || 'OFF') === 'ON' ? 'RUNNING' : 'STANDBY'}</span>
-                      </div>
-                    </div>
-                    {opMode === 'manual' ? (
-                      <label className="ios-switch">
-                        <input
-                          type="checkbox"
-                          checked={cmdLight === 'ON'}
-                          onChange={() => toggleRelay('light', cmdLight, s3Controller?._id)}
-                          disabled={!s3Controller}
-                        />
-                        <span className="ios-slider"></span>
-                      </label>
-                    ) : (
-                      <span style={{
-                        fontSize: 11, fontWeight: 700,
-                        color: (s3Controller?.lastLightState || 'OFF') === 'ON' ? '#ffa726' : 'var(--text-muted)',
-                        background: (s3Controller?.lastLightState || 'OFF') === 'ON' ? 'rgba(255,167,38,0.1)' : 'rgba(255,255,255,0.02)',
-                        padding: '3px 8px', borderRadius: 6,
-                        border: `1px solid ${(s3Controller?.lastLightState || 'OFF') === 'ON' ? 'rgba(255,167,38,0.2)' : 'var(--border)'}`
-                      }}>
-                        {(s3Controller?.lastLightState || 'OFF') === 'ON' ? 'RUNNING' : 'STANDBY'}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="switch-control">
-                    <div className="switch-control-left">
-                      <div className="switch-control-icon">🌀</div>
-                      <div className="switch-control-info">
-                        <span className="switch-control-name">Quạt thông gió</span>
-                        <span className="switch-control-status">{(s3Controller?.lastFanState || 'OFF') === 'ON' ? 'RUNNING' : 'STANDBY'}</span>
-                      </div>
-                    </div>
-                    {opMode === 'manual' ? (
-                      <label className="ios-switch">
-                        <input
-                          type="checkbox"
-                          checked={cmdFan === 'ON'}
-                          onChange={() => toggleRelay('fan', cmdFan, s3Controller?._id)}
-                          disabled={!s3Controller}
-                        />
-                        <span className="ios-slider"></span>
-                      </label>
-                    ) : (
-                      <span style={{
-                        fontSize: 11, fontWeight: 700,
-                        color: (s3Controller?.lastFanState || 'OFF') === 'ON' ? '#29b6f6' : 'var(--text-muted)',
-                        background: (s3Controller?.lastFanState || 'OFF') === 'ON' ? 'rgba(41,182,246,0.1)' : 'rgba(255,255,255,0.02)',
-                        padding: '3px 8px', borderRadius: 6,
-                        border: `1px solid ${(s3Controller?.lastFanState || 'OFF') === 'ON' ? 'rgba(41,182,246,0.2)' : 'var(--border)'}`
-                      }}>
-                        {(s3Controller?.lastFanState || 'OFF') === 'ON' ? 'RUNNING' : 'STANDBY'}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Operational mode buttons */}
-                <div style={{ marginTop: 4 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8, letterSpacing: '0.5px' }}>
-                    ⚙️ Operational Mode
-                  </div>
-                  <div className="mode-selector">
-                    <button
-                      className={`mode-btn ${opMode === 'manual' ? 'active' : ''}`}
-                      onClick={() => handleModeChange('manual', s3Controller?._id)}
-                      disabled={modeChanging || !s3Controller}
-                    >
-                      Manual
-                    </button>
-                    <button
-                      className={`mode-btn ${opMode === 'auto' ? 'active' : ''}`}
-                      onClick={() => handleModeChange('auto', s3Controller?._id)}
-                      disabled={modeChanging || !s3Controller}
-                    >
-                      Auto
-                    </button>
-                    <button
-                      className={`mode-btn ${opMode === 'scheduled' ? 'active' : ''}`}
-                      onClick={() => handleModeChange('scheduled', s3Controller?._id)}
-                      disabled={modeChanging || !s3Controller}
-                    >
-                      Scheduled
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Safety Windows Configuration Panel - only if opMode is 'scheduled' */}
-              {opMode === 'scheduled' && s3Controller && (
-                <div className="card" style={{ padding: 20 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                    <div>
-                      <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>⏰ Khung giờ an toàn</h4>
-                      <div className="small muted" style={{ marginTop: 2 }}>Khoảng thời gian AI được phép bật máy bơm</div>
-                    </div>
-                  </div>
-
-                  {/* List of safety windows */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-                    {!s3Controller.safetyWindows || s3Controller.safetyWindows.length === 0 ? (
-                      <div style={{ textAlign: 'center', padding: '16px 0', color: 'var(--text-muted)', fontSize: 13, background: 'rgba(0,0,0,0.15)', borderRadius: 10, border: '1px dashed var(--border)' }}>
-                        Chưa thiết lập khung giờ nào (Bơm đang bị khóa hoàn toàn)
-                      </div>
-                    ) : (
-                      s3Controller.safetyWindows.map((w, idx) => (
-                        <div key={idx} style={{
-                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                          padding: '10px 14px',
-                          background: 'rgba(16, 185, 129, 0.05)',
-                          border: '1px solid rgba(16, 185, 129, 0.15)',
-                          borderRadius: 10,
-                        }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ fontSize: 16 }}>⏰</span>
-                            <span style={{ fontWeight: 700, fontSize: 13, fontFamily: 'DM Mono, monospace', color: '#81c784' }}>
-                              {w.start} - {w.end}
-                            </span>
-                          </div>
-                          <button
-                            onClick={async () => {
-                              const updatedWindows = s3Controller.safetyWindows.filter((_, i) => i !== idx);
-                              try {
-                                const res = await api.put(`/api/devices/${s3Controller._id}`, { safetyWindows: updatedWindows });
-                                setDevices(prev => prev.map(d => d._id === s3Controller._id ? res.data : d));
-                              } catch (e) {
-                                alert('Không thể xóa khung giờ an toàn');
-                              }
-                            }}
-                            className="btn"
-                            style={{
-                              padding: '4px 8px', fontSize: 11,
-                              background: 'rgba(239,83,80,0.1)',
-                              borderColor: 'rgba(239,83,80,0.25)',
-                              color: '#ef9a9a',
-                              borderRadius: 6
-                            }}
-                          >
-                            Xóa
-                          </button>
-                        </div>
-                      ))
-                    )}
-                  </div>
-
-                  {/* Add form */}
-                  <form onSubmit={async (e) => {
-                    e.preventDefault();
-                    const startVal = e.target.start.value;
-                    const endVal = e.target.end.value;
-                    if (!startVal || !endVal) return;
-                    const updatedWindows = [...(s3Controller.safetyWindows || []), { start: startVal, end: endVal }];
-                    try {
-                      const res = await api.put(`/api/devices/${s3Controller._id}`, { safetyWindows: updatedWindows });
-                      setDevices(prev => prev.map(d => d._id === s3Controller._id ? res.data : d));
-                      e.target.reset();
-                    } catch (e) {
-                      alert('Không thể thêm khung giờ an toàn');
-                    }
-                  }} style={{
-                    background: 'rgba(0,0,0,0.2)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 10,
-                    padding: 12,
-                  }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>Thêm khung giờ cho phép</div>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <input type="time" name="start" required style={{ padding: '6px 8px', fontSize: 12, borderRadius: 6, background: '#0b0d13', border: '1px solid var(--border)', color: '#fff' }} />
-                      <span className="muted" style={{ fontSize: 12 }}>đến</span>
-                      <input type="time" name="end" required style={{ padding: '6px 8px', fontSize: 12, borderRadius: 6, background: '#0b0d13', border: '1px solid var(--border)', color: '#fff' }} />
-                      <button type="submit" className="btn btn-primary" style={{ padding: '6px 12px', fontSize: 12, borderRadius: 6 }}>
-                        + Thêm
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <OverviewTab
+          tinymlText={tinymlText}
+          activeDevice={activeDevice}
+          deviceStatuses={deviceStatuses}
+          latest={latest}
+          chartsData={chartsData}
+          sseStatus={sseStatus}
+          cmdPump={cmdPump}
+          cmdLight={cmdLight}
+          cmdFan={cmdFan}
+          toggleRelay={toggleRelay}
+          s3Controller={s3Controller}
+          opMode={opMode}
+          handleModeChange={handleModeChange}
+          modeChanging={modeChanging}
+          overrideNotice={overrideNotice}
+          setDevices={setDevices}
+        />
       )}
 
       {activeTab === 'control' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-          {/* S3 Controllers Status Row */}
-          {s3Controllers.length > 0 && (
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)', marginBottom: 10 }}>
-                🎛️ Trạng thái bộ điều khiển S3 ({s3Controllers.length})
-              </div>
-              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                {s3Controllers.map(dev => {
-                  const liveStatus = deviceStatuses[dev.externalId] || dev.status
-                  const isOnlineDev = liveStatus === 'online'
-                  return (
-                    <div
-                      key={dev._id}
-                      onClick={() => setActiveDevice(dev)}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 10,
-                        padding: '10px 16px',
-                        borderRadius: 12,
-                        background: activeDevice?._id === dev._id ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255,255,255,0.03)',
-                        border: `1px solid ${activeDevice?._id === dev._id ? 'rgba(16, 185, 129, 0.4)' : 'var(--border)'}`,
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease',
-                        minWidth: 200,
-                      }}
-                    >
-                      <div style={{
-                        width: 8, height: 8, borderRadius: '50%',
-                        background: isOnlineDev ? '#10b981' : '#ef5350',
-                        boxShadow: isOnlineDev ? '0 0 6px rgba(16,185,129,0.6)' : '0 0 6px rgba(239,83,80,0.4)',
-                        flexShrink: 0,
-                      }} />
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          🎛️ {dev.name}
-                        </div>
-                        <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'DM Mono, monospace' }}>
-                          S3 Controller · {liveStatus}
-                        </div>
-                      </div>
-                      <span className={`badge ${isOnlineDev ? 'ok' : 'err'}`} style={{ fontSize: 9, marginLeft: 'auto', flexShrink: 0 }}>
-                        {liveStatus}
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Control Grid */}
-          <div className="dashboard-grid">
-
-            {/* Left Column: Automation and Schedules */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-              {activeDevice ? (
-                <>
-                  <AutomationPanel device={activeDevice} onSaved={(d) => { setActiveDevice(d) }} />
-                  <SchedulesPanel deviceId={activeDevice._id} />
-                </>
-              ) : (
-                <div className="card" style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>
-                  Vui lòng thêm hoặc chọn thiết bị S3 để thiết lập tự động hoá và hẹn giờ.
-                </div>
-              )}
-            </div>
-
-            {/* Right Column: Device Matrix Switches */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {overrideNotice && (
-                <div style={{
-                  background: 'rgba(255, 167, 38, 0.1)',
-                  border: '1px solid rgba(255, 167, 38, 0.2)',
-                  color: '#ffa726',
-                  padding: '10px 16px',
-                  borderRadius: 12,
-                  fontSize: 12,
-                  fontWeight: 600,
-                }}>
-                  ⚠️ {overrideNotice}
-                </div>
-              )}
-
-              <div className="card" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div>
-                  <h3 style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
-                    Device Matrix
-                  </h3>
-                </div>
-
-                {/* Toggles list */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <div className="switch-control">
-                    <div className="switch-control-left">
-                      <div className="switch-control-icon">💦</div>
-                      <div className="switch-control-info">
-                        <span className="switch-control-name">Máy bơm</span>
-                        <span className="switch-control-status">{cmdPump === 'ON' ? 'RUNNING' : 'STANDBY'}</span>
-                      </div>
-                    </div>
-                    <label className="ios-switch">
-                      <input
-                        type="checkbox"
-                        checked={cmdPump === 'ON'}
-                        onChange={() => toggleRelay('pump', cmdPump, s3Controller?._id)}
-                        disabled={!s3Controller}
-                      />
-                      <span className="ios-slider"></span>
-                    </label>
-                  </div>
-
-                  <div className="switch-control">
-                    <div className="switch-control-left">
-                      <div className="switch-control-icon">💡</div>
-                      <div className="switch-control-info">
-                        <span className="switch-control-name">Hệ thống đèn</span>
-                        <span className="switch-control-status">{cmdLight === 'ON' ? 'RUNNING' : 'STANDBY'}</span>
-                      </div>
-                    </div>
-                    <label className="ios-switch">
-                      <input
-                        type="checkbox"
-                        checked={cmdLight === 'ON'}
-                        onChange={() => toggleRelay('light', cmdLight, s3Controller?._id)}
-                        disabled={!s3Controller}
-                      />
-                      <span className="ios-slider"></span>
-                    </label>
-                  </div>
-
-                  <div className="switch-control">
-                    <div className="switch-control-left">
-                      <div className="switch-control-icon">🌀</div>
-                      <div className="switch-control-info">
-                        <span className="switch-control-name">Quạt thông gió</span>
-                        <span className="switch-control-status">{cmdFan === 'ON' ? 'RUNNING' : 'STANDBY'}</span>
-                      </div>
-                    </div>
-                    <label className="ios-switch">
-                      <input
-                        type="checkbox"
-                        checked={cmdFan === 'ON'}
-                        onChange={() => toggleRelay('fan', cmdFan, s3Controller?._id)}
-                        disabled={!s3Controller}
-                      />
-                      <span className="ios-slider"></span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Operational mode buttons */}
-                <div style={{ marginTop: 4 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8, letterSpacing: '0.5px' }}>
-                    ⚙️ Operational Mode
-                  </div>
-                  <div className="mode-selector">
-                    <button
-                      className={`mode-btn ${opMode === 'manual' ? 'active' : ''}`}
-                      onClick={() => handleModeChange('manual', s3Controller?._id)}
-                      disabled={modeChanging || !s3Controller}
-                    >
-                      Manual
-                    </button>
-                    <button
-                      className={`mode-btn ${opMode === 'auto' ? 'active' : ''}`}
-                      onClick={() => handleModeChange('auto', s3Controller?._id)}
-                      disabled={modeChanging || !s3Controller}
-                    >
-                      Auto
-                    </button>
-                    <button
-                      className={`mode-btn ${opMode === 'scheduled' ? 'active' : ''}`}
-                      onClick={() => handleModeChange('scheduled', s3Controller?._id)}
-                      disabled={modeChanging || !s3Controller}
-                    >
-                      Scheduled
-                    </button>
-                  </div>
-                </div>
-
-                {/* Expected Consumption Info Banner */}
-                <div className="water-info-banner" style={{ marginTop: 'auto' }}>
-                  <span className="water-info-icon">ℹ️</span>
-                  <span>Dự kiến tiêu thụ: 20L nước sạch dựa trên chu kỳ vận hành</span>
-                </div>
-              </div>
-            </div>
-
-          </div>
-        </div>
+        <ControlTab
+          s3Controllers={s3Controllers}
+          deviceStatuses={deviceStatuses}
+          activeDevice={activeDevice}
+          setActiveDevice={setActiveDevice}
+          overrideNotice={overrideNotice}
+          cmdPump={cmdPump}
+          cmdLight={cmdLight}
+          cmdFan={cmdFan}
+          toggleRelay={toggleRelay}
+          s3Controller={s3Controller}
+          opMode={opMode}
+          handleModeChange={handleModeChange}
+          modeChanging={modeChanging}
+          setDevices={setDevices}
+        />
       )}
 
-      {activeTab === 'map' && (
-        <div className="card" style={{ padding: 24 }}>
-          <h3 style={{ fontSize: 15, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 16 }}>
-            Bản Đồ Phân Phối Thiết Bị
-          </h3>
-          <div style={{
-            height: 380,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'rgba(0,0,0,0.3)',
-            borderRadius: 12,
-            border: '1px solid var(--border)',
-            position: 'relative',
-            overflow: 'hidden'
-          }}>
-            {/* Blinking Grid Background */}
-            <div style={{
-              position: 'absolute', inset: 0,
-              backgroundImage: 'radial-gradient(rgba(16, 185, 129, 0.08) 1px, transparent 0)',
-              backgroundSize: '24px 24px',
-            }} />
 
-            {/* SVG Farm Plot layout */}
-            <svg viewBox="0 0 400 240" width="100%" height="80%" style={{ position: 'relative', maxWidth: 500 }}>
-              <rect x="20" y="20" width="360" height="200" rx="10" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="2" />
-
-              {/* Agricultural zones grid */}
-              <line x1="140" y1="20" x2="140" y2="220" stroke="rgba(255,255,255,0.06)" strokeDasharray="4 4" />
-              <line x1="260" y1="20" x2="260" y2="220" stroke="rgba(255,255,255,0.06)" strokeDasharray="4 4" />
-
-              <text x="75" y="45" fill="rgba(255,255,255,0.2)" fontSize="10" fontWeight="bold" textAnchor="middle">KHU VỰC A (RAU SẠCH)</text>
-              <text x="200" y="45" fill="rgba(255,255,255,0.2)" fontSize="10" fontWeight="bold" textAnchor="middle">KHU VỰC B (CÂY ĂN QUẢ)</text>
-              <text x="325" y="45" fill="rgba(255,255,255,0.2)" fontSize="10" fontWeight="bold" textAnchor="middle">KHU VỰC C (HOA KIỂNG)</text>
-
-              {/* Nodes and Sensor coordinates */}
-              <circle cx="80" cy="120" r="25" fill="rgba(16,185,129,0.1)" stroke="rgba(16,185,129,0.3)" />
-              <circle cx="80" cy="120" r="4" fill="#10b981" />
-              <text x="80" y="160" fill="#10b981" fontSize="9" fontWeight="bold" textAnchor="middle">NODE 1 (HOẠT ĐỘNG)</text>
-
-              <circle cx="200" cy="120" r="25" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.1)" />
-              <circle cx="200" cy="120" r="4" fill="rgba(255,255,255,0.3)" />
-              <text x="200" y="160" fill="rgba(255,255,255,0.3)" fontSize="9" textAnchor="middle">NODE 2 (OFFLINE)</text>
-
-              <circle cx="320" cy="120" r="25" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.1)" />
-              <circle cx="320" cy="120" r="4" fill="rgba(255,255,255,0.3)" />
-              <text x="320" y="160" fill="rgba(255,255,255,0.3)" fontSize="9" textAnchor="middle">NODE 3 (OFFLINE)</text>
-
-              {/* Water Valve Line Connection */}
-              <path d="M 80 120 L 200 120 L 320 120" fill="none" stroke="rgba(16,185,129,0.2)" strokeWidth="1" strokeDasharray="3 3" />
-            </svg>
-
-            {/* Blinking Live Indicator overlay */}
-            <div style={{
-              position: 'absolute', top: 16, right: 16,
-              background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)',
-              color: '#81c784', fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 99,
-              display: 'flex', alignItems: 'center', gap: 6
-            }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', display: 'inline-block', animation: 'pulse-green 1.5s infinite' }} />
-              BẢN ĐỒ TRỰC TUYẾN
-            </div>
-          </div>
-        </div>
-      )}
 
       {activeTab === 'analytics' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {/* AI Strategic Report */}
-          <div className="card" style={{ padding: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
-            <div>
-              <h3 style={{ fontSize: 16, fontWeight: 800, color: '#fff', marginBottom: 4 }}>
-                AI Strategic Report
-              </h3>
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
-                Phân tích dữ liệu lịch sử và đưa ra chiến lược tưới lâu dài
-              </p>
-              {aiReportText && (
-                <div style={{
-                  marginTop: 12,
-                  padding: 12,
-                  background: 'rgba(16,185,129,0.05)',
-                  border: '1px solid rgba(16,185,129,0.15)',
-                  borderRadius: 8,
-                  fontSize: 13,
-                  color: '#81c784',
-                  lineHeight: 1.5,
-                  maxWidth: 700,
-                  animation: 'dropdownFadeIn 0.3s ease both'
-                }}>
-                  🤖 {aiReportText}
-                </div>
-              )}
-            </div>
-            <button
-              className="btn btn-primary"
-              onClick={generateReport}
-              disabled={generatingReport}
-              style={{ borderRadius: 20, padding: '10px 24px', fontSize: 12 }}
-            >
-              {generatingReport ? 'GENERATING...' : 'GENERATE AI SUMMARY'}
-            </button>
-          </div>
-
-          {/* Grid: Charts */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-            {/* Soil Moisture */}
-            <div className="card" style={{ padding: 20 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 16, letterSpacing: '0.5px' }}>
-                SOIL MOISTURE MATRIX (%)
-              </div>
-              <div style={{ height: 220 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartsData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="colorSoilAnalytic" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0.01} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
-                    <XAxis dataKey="timeLabel" tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.3)' }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.3)' }} axisLine={false} tickLine={false} />
-                    <Tooltip contentStyle={{ backgroundColor: '#0f121a', borderColor: 'rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 12 }} />
-                    <Area type="monotone" dataKey="soilMoisture" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorSoilAnalytic)" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* Lux */}
-            <div className="card" style={{ padding: 20 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 16, letterSpacing: '0.5px' }}>
-                LUMINOUS INTENSITY (LUX)
-              </div>
-              <div style={{ height: 220 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartsData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="colorLuxAnalytic" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#ffa726" stopOpacity={0.2} />
-                        <stop offset="95%" stopColor="#ffa726" stopOpacity={0.01} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
-                    <XAxis dataKey="timeLabel" tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.3)' }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.3)' }} axisLine={false} tickLine={false} />
-                    <Tooltip contentStyle={{ backgroundColor: '#0f121a', borderColor: 'rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 12 }} />
-                    <Area type="stepAfter" dataKey="lux" stroke="#ffa726" strokeWidth={2} fillOpacity={1} fill="url(#colorLuxAnalytic)" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
-
-          {/* Raw Telemetry Table */}
-          <div className="card" style={{ padding: 20 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 16, letterSpacing: '0.5px' }}>
-              RAW TELEMETRY TABLE
-            </div>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr>
-                    <th style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '10px 16px', borderBottom: '1px solid var(--border)', textAlign: 'left' }}>TIMELINE</th>
-                    <th style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '10px 16px', borderBottom: '1px solid var(--border)', textAlign: 'left' }}>TEMP</th>
-                    <th style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '10px 16px', borderBottom: '1px solid var(--border)', textAlign: 'left' }}>HUM</th>
-                    <th style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '10px 16px', borderBottom: '1px solid var(--border)', textAlign: 'left' }}>SOIL</th>
-                    <th style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '10px 16px', borderBottom: '1px solid var(--border)', textAlign: 'left' }}>LUM</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {chartsData.length === 0 ? (
-                    <tr>
-                      <td colSpan="5" style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-                        Không có dữ liệu telemetry
-                      </td>
-                    </tr>
-                  ) : (
-                    [...chartsData].reverse().slice(0, 10).map((row, idx) => (
-                      <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
-                        <td style={{ padding: '10px 16px', fontSize: 13, fontFamily: 'DM Mono, monospace', color: 'var(--text-dim)' }}>
-                          {row.timestamp ? new Date(row.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—'}
-                        </td>
-                        <td style={{ padding: '10px 16px', fontSize: 13, fontFamily: 'DM Mono, monospace', color: '#ff7043' }}>
-                          {row.temperature !== undefined ? `${row.temperature} °C` : '—'}
-                        </td>
-                        <td style={{ padding: '10px 16px', fontSize: 13, fontFamily: 'DM Mono, monospace', color: '#29b6f6' }}>
-                          {row.humidity !== undefined ? `${row.humidity} %` : '—'}
-                        </td>
-                        <td style={{ padding: '10px 16px', fontSize: 13, fontFamily: 'DM Mono, monospace', color: '#10b981' }}>
-                          {row.soilMoisture !== undefined ? `${row.soilMoisture} %` : '—'}
-                        </td>
-                        <td style={{ padding: '10px 16px', fontSize: 13, fontFamily: 'DM Mono, monospace', color: '#ffa726' }}>
-                          {row.lux !== undefined ? `${row.lux} lx` : '—'}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+        <AnalyticsTab
+          chartsData={chartsData}
+          aiReportText={aiReportText}
+          generateReport={generateReport}
+          generatingReport={generatingReport}
+        />
       )}
 
       {activeTab === 'ai' && (
-        <div className="card" style={{ padding: 0, height: 480, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          {/* Chat Header */}
-          <div style={{
-            padding: '16px 20px',
-            borderBottom: '1px solid var(--border)',
-            background: 'rgba(16,185,129,0.05)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12
-          }}>
-            <div style={{
-              width: 32, height: 32, borderRadius: '50%',
-              background: '#10b981', color: '#fff',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15
-            }}>🤖</div>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 700 }}>Trợ lý GreenGuard AI</div>
-              <div style={{ fontSize: 10, color: '#81c784', fontWeight: 600 }}>TINYML KẾT NỐI TRỰC TUYẾN</div>
-            </div>
-          </div>
-
-          {/* Chat message logs */}
-          <div style={{ flex: 1, padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {messages.map((m, idx) => (
-              <div
-                key={idx}
-                style={{
-                  alignSelf: m.sender === 'ai' ? 'flex-start' : 'flex-end',
-                  maxWidth: '75%',
-                  padding: '10px 14px',
-                  borderRadius: 12,
-                  fontSize: 13,
-                  lineHeight: 1.5,
-                  background: m.sender === 'ai' ? 'rgba(255,255,255,0.04)' : '#10b981',
-                  color: '#fff',
-                  border: m.sender === 'ai' ? '1px solid var(--border)' : 'none',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-                }}
-              >
-                {m.text}
-              </div>
-            ))}
-
-            {isTyping && (
-              <div style={{
-                alignSelf: 'flex-start',
-                padding: '10px 14px',
-                borderRadius: 12,
-                background: 'rgba(255,255,255,0.04)',
-                border: '1px solid var(--border)',
-                display: 'flex',
-                gap: 4,
-                alignItems: 'center'
-              }}>
-                <span className="dot-typing" />
-                <span className="dot-typing" />
-                <span className="dot-typing" />
-                <style>{`
-                  .dot-typing {
-                    width: 6px; height: 6px;
-                    background-color: var(--text-dim);
-                    border-radius: 50%;
-                    display: inline-block;
-                    animation: bounce 1.4s infinite ease-in-out both;
-                  }
-                  .dot-typing:nth-child(1) { animation-delay: -0.32s; }
-                  .dot-typing:nth-child(2) { animation-delay: -0.16s; }
-                  @keyframes bounce {
-                    0%, 80%, 100% { transform: scale(0); }
-                    40% { transform: scale(1.0); }
-                  }
-                `}</style>
-              </div>
-            )}
-          </div>
-
-          {/* Chat input form */}
-          <form onSubmit={handleSendChat} style={{
-            padding: 16,
-            borderTop: '1px solid var(--border)',
-            display: 'flex',
-            gap: 10
-          }}>
-            <input
-              type="text"
-              placeholder="Hỏi trợ lý về tưới nước, nhiệt độ hoặc độ ẩm..."
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              disabled={isTyping}
-              style={{ flex: 1, padding: '10px 16px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', borderRadius: 10, outline: 'none', color: '#fff' }}
-            />
-            <button
-              className="btn btn-primary"
-              type="submit"
-              disabled={isTyping || !chatInput.trim()}
-              style={{ borderRadius: 10, padding: '10px 16px' }}
-            >
-              Gửi
-            </button>
-          </form>
-        </div>
+        <AiTab
+          user={user}
+          messages={messages}
+          chatInput={chatInput}
+          setChatInput={setChatInput}
+          isTyping={isTyping}
+          handleSendChat={handleSendChat}
+        />
       )}
 
       {activeTab === 'device-settings' && (

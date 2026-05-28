@@ -8,7 +8,7 @@
 #include <tensorflow/lite/schema/schema_generated.h>
 #include "config.h"
 #include "model.h"
-#include "../common/shared_protocol.h"
+#include "shared_protocol.h"
 
 class TinyMLManager {
 public:

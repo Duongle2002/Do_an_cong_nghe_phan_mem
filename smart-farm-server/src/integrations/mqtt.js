@@ -153,7 +153,8 @@ function initMqtt(app) {
             relayLight: currentLight || 'OFF',
             relayPump: currentPump || 'OFF',
             status: 'online',
-            ts: doc.timestamp
+            ts: doc.timestamp,
+            opMode: s3Controller ? s3Controller.opMode : undefined
           };
           appRef.locals.pushTelemetry(externalId, pushPayload);
         }
@@ -302,6 +303,12 @@ function initMqtt(app) {
           const currentLight = stateUpdates.lastLightState || device.lastLightState || 'OFF';
           const currentPump = stateUpdates.lastPumpState || device.lastPumpState || 'OFF';
 
+          let s3Ctrl = null;
+          if (externalId && (externalId.startsWith('esp32-') || externalId.startsWith('wroom-'))) {
+            s3Ctrl = await Device.findOne({ pairedSensorId: externalId }).lean();
+          }
+          const opModeVal = s3Ctrl ? s3Ctrl.opMode : (data.opMode || device.opMode);
+
           const pushPayload = {
             externalId,
             temperature: typeof data.temperature === 'number' ? data.temperature : undefined,
@@ -313,6 +320,7 @@ function initMqtt(app) {
             relayPump: currentPump,
             status: 'online',
             ts: data.timestamp ? new Date(data.timestamp) : new Date(),
+            opMode: opModeVal
           };
           appRef.locals.pushTelemetry(externalId, pushPayload);
 

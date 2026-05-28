@@ -6,8 +6,8 @@
 #include <Preferences.h>
 #include "config.h"
 #include "relay_manager.h"
-#include "../common/shared_protocol.h"
-#include "../common/wifi_config_portal.h"
+#include "shared_protocol.h"
+#include "wifi_config_portal.h"
 
 class AppNetworkManager {
 public:

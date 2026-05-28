@@ -2,8 +2,8 @@
 #include <WiFi.h>
 #include "esp_mac.h"
 #include "config.h"
-#include "../common/shared_protocol.h"
-#include "../common/wifi_config_portal.h"
+#include "shared_protocol.h"
+#include "wifi_config_portal.h"
 #include "sensor_manager.h"
 #include "tinyml_manager.h"
 #include "app_network_manager.h"

@@ -76,13 +76,7 @@ export default function App() {
               <span>Điều khiển</span>
             </Link>
 
-            <Link
-              to="/devices?tab=map"
-              className={`sidebar-link ${activeTab === 'map' ? 'active' : ''}`}
-            >
-              <span style={{ fontSize: 16 }}>🗺️</span>
-              <span>Bản đồ</span>
-            </Link>
+
 
             <Link
               to="/devices?tab=analytics"
