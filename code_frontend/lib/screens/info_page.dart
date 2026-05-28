@@ -130,6 +130,30 @@ $advice''';
               fontWeight: FontWeight.bold,
             ),
           ),
+          const SizedBox(height: 16),
+
+          // Warning Banner
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.amber.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.amber.withOpacity(0.3), width: 1),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 20),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Lưu ý: Đây chưa phải là trí tuệ nhân tạo (AI) thực sự vì hệ thống chưa được huấn luyện (training). Chức năng này đang trong quá trình phát triển, các câu trả lời hiện tại chỉ mang tính chất mô phỏng theo dữ liệu cảm biến thực tế.',
+                    style: TextStyle(color: Colors.amber, fontSize: 12, height: 1.4),
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 24),
 
           // Brain Card

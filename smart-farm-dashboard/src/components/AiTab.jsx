@@ -32,6 +32,24 @@ export default function AiTab({
         </div>
       </div>
 
+      {/* Disclaimer banner */}
+      <div style={{
+        padding: '12px 20px',
+        background: 'rgba(217, 119, 6, 0.1)',
+        borderBottom: '1px solid rgba(217, 119, 6, 0.2)',
+        fontSize: 12,
+        color: '#fbbf24',
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 10,
+        lineHeight: 1.4
+      }}>
+        <span style={{ fontSize: 16, lineHeight: 1 }}>⚠️</span>
+        <span>
+          <strong>Lưu ý:</strong> Đây chưa phải là trí tuệ nhân tạo (AI) thực sự. Chức năng này đang trong quá trình phát triển, các câu trả lời hiện tại chỉ mang tính chất mô phỏng theo dữ liệu cảm biến thực tế.
+        </span>
+      </div>
+
       {/* Chat message logs */}
       <div style={{ flex: 1, padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
         {messages.map((m, idx) => (

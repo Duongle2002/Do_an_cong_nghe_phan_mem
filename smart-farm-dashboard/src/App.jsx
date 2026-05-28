@@ -102,17 +102,6 @@ export default function App() {
               <span>Cài đặt thiết bị</span>
             </Link>
           </nav>
-
-          <div className="sidebar-footer">
-            <button
-              className="btn btn-outline"
-              onClick={logout}
-              style={{ width: '100%', justifyContent: 'center', gap: 8, borderRadius: 10 }}
-            >
-              <span>🚪</span>
-              <span>Đăng xuất</span>
-            </button>
-          </div>
         </aside>
 
         {/* Main Content Area */}
