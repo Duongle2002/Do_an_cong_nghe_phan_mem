@@ -41,6 +41,19 @@ export default function App() {
   const { isAuthed, logout, user } = useAuth()
   const location = useLocation()
 
+  React.useEffect(() => {
+    // Apply theme
+    const savedTheme = localStorage.getItem('pref_theme') || 'emerald';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+
+    // Request notification permission
+    if (localStorage.getItem('pref_alert_notify') !== 'false' && typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission().catch(() => {});
+      }
+    }
+  }, []);
+
   if (location.pathname === '/presentation') {
     return <PresentationPage />
   }

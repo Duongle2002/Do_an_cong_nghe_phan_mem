@@ -9,6 +9,7 @@ import PairingPanel from '../components/PairingPanel'
 import UserProfile from '../components/UserProfile'
 import ControlBox from '../components/ControlBox'
 import DeviceEditModal from '../components/DeviceEditModal'
+import { checkSensorThresholds } from '../utils/preferences'
 
 
 
@@ -63,7 +64,13 @@ export default function DeviceDetailPage() {
     if (!silent) { setLoading(true) }
     try {
       const sensRes = await api.get(`/api/sensors`, { params: { deviceId: id, limit } })
-      setData(sensRes.data || [])
+      const arr = sensRes.data || []
+      setData(arr)
+
+      // Safety check on loaded/polled data
+      if (arr.length > 0 && device) {
+        checkSensorThresholds(device, arr[0]);
+      }
     } catch (e) {
       if (!silent) showMsg(e.response?.data?.message || 'Failed to load data', 'err')
     } finally {
@@ -91,9 +98,11 @@ export default function DeviceDetailPage() {
   }, [id, limit])
 
   useEffect(() => {
+    const refreshSeconds = parseInt(localStorage.getItem('pref_refresh_rate') || '8', 10);
+    const intervalTime = refreshSeconds * 1000;
     const t = setInterval(() => {
       if (sseStatus !== 'connected') { loadSensors(true); loadDeviceState() }
-    }, 5000)
+    }, intervalTime)
     return () => clearInterval(t)
   }, [id, limit, sseStatus])
 
@@ -116,6 +125,10 @@ export default function DeviceDetailPage() {
       es.addEventListener('telemetry', (evt) => {
         try {
           const payload = JSON.parse(evt.data)
+
+          // Safety threshold check
+          checkSensorThresholds(device, payload);
+
           if (payload.relayFan) setCmdFan(payload.relayFan)
           if (payload.relayLight) setCmdLight(payload.relayLight)
           if (payload.relayPump) setCmdPump(payload.relayPump)
@@ -257,10 +270,14 @@ export default function DeviceDetailPage() {
                     }}>
                       {latest[m.key] !== undefined && latest[m.key] !== null 
                         ? (typeof latest[m.key] === 'number' && (m.key === 'temperature' || m.key === 'humidity') 
-                          ? latest[m.key].toFixed(2) 
+                          ? (m.key === 'temperature' && localStorage.getItem('pref_temp_unit') === 'F'
+                            ? (latest[m.key] * 1.8 + 32).toFixed(2)
+                            : latest[m.key].toFixed(2)) 
                           : latest[m.key])
                         : '—'}
-                      <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 2 }}>{m.unit}</span>
+                      <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 2 }}>
+                        {m.key === 'temperature' ? (localStorage.getItem('pref_temp_unit') === 'F' ? '°F' : '°C') : m.unit}
+                      </span>
                     </div>
                   </div>
                 ))}
@@ -321,7 +338,7 @@ export default function DeviceDetailPage() {
           </label>
         </div>
         <div className="grid grid-2">
-          <MetricChart title="Nhiệt độ (°C)" data={chartsData} dataKey="temperature" color="#ff7043" />
+          <MetricChart title={`Nhiệt độ (${localStorage.getItem('pref_temp_unit') === 'F' ? '°F' : '°C'})`} data={chartsData} dataKey="temperature" color="#ff7043" />
           <MetricChart title="Độ ẩm không khí (%)" data={chartsData} dataKey="humidity" color="#29b6f6" />
           <MetricChart title="Độ ẩm đất (%)" data={chartsData} dataKey="soilMoisture" color="#66bb6a" />
           <MetricChart title="Ánh sáng (Lux)" data={chartsData} dataKey="lux" color="#ffa726" />

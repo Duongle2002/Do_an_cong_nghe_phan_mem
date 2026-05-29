@@ -32,6 +32,16 @@ export default function SettingsPage() {
     localStorage.setItem('pref_theme', theme)
     localStorage.setItem('pref_alert_notify', alertNotify ? 'true' : 'false')
     
+    // Request permission if enabled
+    if (alertNotify && typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission().catch(() => {});
+      }
+    }
+
+    // Apply theme immediately
+    document.documentElement.setAttribute('data-theme', theme);
+    
     setTimeout(() => {
       setSaving(false)
       setSuccessMsg('Đã lưu cấu hình cài đặt hệ thống!')
@@ -183,6 +193,7 @@ export default function SettingsPage() {
                 <option value="emerald">Emerald Dark (Mặc định)</option>
                 <option value="classic">Classic Dark Mode</option>
                 <option value="neon">Neon Blue Glass</option>
+                <option value="light">Pure Light Mode</option>
               </select>
             </div>
 
@@ -260,9 +271,13 @@ export default function SettingsPage() {
                 <span className="muted">Độ chính xác (Bơm)</span>
                 <span style={{ fontWeight: 600 }}>89.7%</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, paddingBottom: 4 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, borderBottom: '1px solid var(--border)', paddingBottom: 8 }}>
                 <span className="muted">Độ chính xác (Quạt)</span>
                 <span style={{ fontWeight: 600 }}>81.0%</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, paddingBottom: 4 }}>
+                <span className="muted">Độ chính xác (Ánh sáng)</span>
+                <span style={{ fontWeight: 600 }}>85.3%</span>
               </div>
             </div>
           </div>

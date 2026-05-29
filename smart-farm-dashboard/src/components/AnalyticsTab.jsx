@@ -1,5 +1,6 @@
 import React from 'react'
 import { AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
+import { getTempUnit, convertTemp } from '../utils/preferences'
 
 export default function AnalyticsTab({
   chartsData,
@@ -7,6 +8,19 @@ export default function AnalyticsTab({
   generateReport,
   generatingReport,
 }) {
+  const tempUnitLabel = getTempUnit() === 'F' ? '°F' : '°C';
+  const displayChartsData = React.useMemo(() => {
+    if (getTempUnit() === 'F') {
+      return chartsData?.map(item => ({
+        ...item,
+        temperature: item.temperature !== undefined && item.temperature !== null 
+          ? Number((item.temperature * 1.8 + 32).toFixed(1))
+          : item.temperature
+      }));
+    }
+    return chartsData;
+  }, [chartsData]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div className="card" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -103,7 +117,7 @@ export default function AnalyticsTab({
                     background: `${aiReportText.tempColor}15`,
                     color: aiReportText.tempColor,
                     border: `1px solid ${aiReportText.tempColor}30`
-                  }}>{aiReportText.avgTemp}°C ({aiReportText.tempStatus})</span>
+                  }}>{getTempUnit() === 'F' ? `${(aiReportText.avgTemp * 1.8 + 32).toFixed(1)}°F` : `${aiReportText.avgTemp}°C`} ({aiReportText.tempStatus})</span>
                 </div>
                 <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
                   {aiReportText.tempRec}
@@ -146,11 +160,11 @@ export default function AnalyticsTab({
         {/* Temperature */}
         <div className="card" style={{ padding: 20 }}>
           <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 16, letterSpacing: '0.5px' }}>
-            TEMPERATURE (°C)
+            TEMPERATURE ({tempUnitLabel})
           </div>
           <div style={{ height: 220 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartsData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+              <AreaChart data={displayChartsData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorTempAnalytic" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#ff7043" stopOpacity={0.2} />
@@ -270,7 +284,7 @@ export default function AnalyticsTab({
                       {row.timestamp ? new Date(row.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—'}
                     </td>
                     <td style={{ padding: '10px 16px', fontSize: 13, fontFamily: 'DM Mono, monospace', color: '#ff7043' }}>
-                      {row.temperature !== undefined ? `${row.temperature} °C` : '—'}
+                      {row.temperature !== undefined ? (getTempUnit() === 'F' ? `${(row.temperature * 1.8 + 32).toFixed(1)} °F` : `${row.temperature} °C`) : '—'}
                     </td>
                     <td style={{ padding: '10px 16px', fontSize: 13, fontFamily: 'DM Mono, monospace', color: '#29b6f6' }}>
                       {row.humidity !== undefined ? `${row.humidity} %` : '—'}

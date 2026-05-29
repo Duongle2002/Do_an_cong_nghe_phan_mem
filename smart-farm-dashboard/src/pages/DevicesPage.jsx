@@ -8,6 +8,7 @@ import OverviewTab from '../components/OverviewTab'
 import ControlTab from '../components/ControlTab'
 import AnalyticsTab from '../components/AnalyticsTab'
 import AiTab from '../components/AiTab'
+import { checkSensorThresholds } from '../utils/preferences'
 
 export default function DevicesPage() {
   const navigate = useNavigate()
@@ -143,6 +144,11 @@ export default function DevicesPage() {
       const arr = res.data || []
       // Guard: don't reset existing SSE data if DB returns empty
       if (arr.length === 0) return
+
+      // Safety check on loaded/polled data
+      const devObj = devices.find(d => d._id === deviceId) || activeDevice;
+      checkSensorThresholds(devObj, arr[0]);
+
       const reversed = arr.slice().reverse()
       // format timestamps for chart labels
       const formatted = reversed.map(d => ({
@@ -169,12 +175,15 @@ export default function DevicesPage() {
     if (!activeDevice) return
     loadTelemetry(activeDevice._id)
 
+    const refreshSeconds = parseInt(localStorage.getItem('pref_refresh_rate') || '8', 10);
+    const intervalTime = refreshSeconds * 1000;
+
     // Poll telemetry data when SSE is disconnected
     const interval = setInterval(() => {
       if (sseStatus !== 'connected') {
         loadTelemetry(activeDevice._id)
       }
-    }, 8000)
+    }, intervalTime)
 
     return () => clearInterval(interval)
   }, [activeDevice?._id, sseStatus])
@@ -205,6 +214,11 @@ export default function DevicesPage() {
       es.addEventListener('telemetry', (evt) => {
         try {
           const payload = JSON.parse(evt.data)
+
+          // Safety threshold check
+          const devObj = devices.find(d => d.externalId === payload.externalId) || activeDevice;
+          checkSensorThresholds(devObj, payload);
+
           if (payload.relayFan) setCmdFan(payload.relayFan)
           if (payload.relayLight) setCmdLight(payload.relayLight)
           if (payload.relayPump) setCmdPump(payload.relayPump)
@@ -358,6 +372,10 @@ export default function DevicesPage() {
         es.addEventListener('telemetry', (evt) => {
           try {
             const payload = JSON.parse(evt.data)
+
+            // Safety threshold check for other devices
+            checkSensorThresholds(dev, payload);
+
             setDevices(prev => prev.map(d => {
               if (d.externalId === dev.externalId) {
                 return {
@@ -497,7 +515,11 @@ export default function DevicesPage() {
       let aiResponse = 'Tôi chưa hiểu câu hỏi của bạn lắm. Bạn có thể hỏi tôi về nhiệt độ, độ ẩm đất, thiết bị bơm, hoặc gõ "trạng thái" để tôi báo cáo tổng quan nhé!'
 
       const soil = latest?.soilMoisture ?? 50
-      const temp = latest?.temperature ?? 26.5
+      const tempCelsius = latest?.temperature ?? 26.5
+      const displayTemp = localStorage.getItem('pref_temp_unit') === 'F' 
+        ? `${(tempCelsius * 1.8 + 32).toFixed(1)}°F` 
+        : `${tempCelsius.toFixed(1)}°C`
+
       const lowerMsg = userMsg.toLowerCase()
       const words = lowerMsg.trim().split(/\s+/)
 
@@ -510,14 +532,14 @@ export default function DevicesPage() {
             : 'Độ ẩm đất hiện đang ổn định trên 55%. Chưa cần tưới nước thêm lúc này.'
           }`
       } else if (lowerMsg.includes('nhiệt độ') || lowerMsg.includes('nóng') || lowerMsg.includes('quạt')) {
-        aiResponse = `Nhiệt độ hiện tại trong nhà kính đo được là ${temp}°C. ${temp > 28
+        aiResponse = `Nhiệt độ hiện tại trong nhà kính đo được là ${displayTemp}. ${tempCelsius > 28
             ? 'Mức nhiệt khá cao, quạt thông gió nên được bật để đối lưu không khí.'
             : 'Mức nhiệt này nằm trong ngưỡng phát triển tốt của cây.'
           }`
       } else if (lowerMsg.includes('chuyện gì') || lowerMsg.includes('có chuyện gì') || lowerMsg.includes('có gì') || lowerMsg.includes('bị sao')) {
-        aiResponse = `Hệ thống nhà kính của bạn vẫn đang hoạt động bình thường, không có sự cố gì xảy ra cả. Nhiệt độ hiện tại là ${temp}°C và độ ẩm đất là ${soil}%.`
+        aiResponse = `Hệ thống nhà kính của bạn vẫn đang hoạt động bình thường, không có sự cố gì xảy ra cả. Nhiệt độ hiện tại là ${displayTemp} và độ ẩm đất là ${soil}%.`
       } else if (lowerMsg.includes('trạng thái') || lowerMsg.includes('ổn định') || lowerMsg.includes('sao')) {
-        aiResponse = `Hệ thống GreenGuard AI báo cáo: Nhiệt độ ${temp}°C, Độ ẩm đất ${soil}%, Độ ẩm không khí ${latest?.humidity ?? 64}%, Ánh sáng ${latest?.lux ?? 6264} lux. Mọi thông số hoạt động ở mức lý tưởng.`
+        aiResponse = `Hệ thống GreenGuard AI báo cáo: Nhiệt độ ${displayTemp}, Độ ẩm đất ${soil}%, Độ ẩm không khí ${latest?.humidity ?? 64}%, Ánh sáng ${latest?.lux ?? 6264} lux. Mọi thông số hoạt động ở mức lý tưởng.`
       } else if (isGreeting) {
         aiResponse = `Xin chào! Tôi là trợ lý GreenGuard AI. Tôi có thể giúp gì cho bạn hôm nay? Bạn có thể hỏi tôi về trạng thái nhà kính, nhiệt độ, độ ẩm hoặc hệ thống tưới nước nhé.`
       }
@@ -617,7 +639,7 @@ export default function DevicesPage() {
         luxStatus,
         luxRec,
         luxColor,
-        summary: `Hệ thống TinyML phân tích dựa trên dữ liệu lịch sử của thiết bị: Nhiệt độ trung bình ${avgTemp}°C, độ ẩm đất ${avgSoil}%, độ ẩm không khí ${avgHum}%, cường độ ánh sáng ${avgLux} lux. Chiến lược vận hành tối ưu được đề xuất như sau:`
+        summary: `Hệ thống TinyML phân tích dựa trên dữ liệu lịch sử của thiết bị: Nhiệt độ trung bình ${localStorage.getItem('pref_temp_unit') === 'F' ? `${(avgTemp * 1.8 + 32).toFixed(1)}°F` : `${avgTemp}°C`}, độ ẩm đất ${avgSoil}%, độ ẩm không khí ${avgHum}%, cường độ ánh sáng ${avgLux} lux. Chiến lược vận hành tối ưu được đề xuất như sau:`
       })
     }, 1500)
   }

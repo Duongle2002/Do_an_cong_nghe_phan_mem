@@ -1,5 +1,6 @@
 import React from 'react'
 import { AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
+import { getTempUnit, convertTemp } from '../utils/preferences'
 
 export default function OverviewTab({
   tinymlText,
@@ -20,6 +21,19 @@ export default function OverviewTab({
   setDevices,
 }) {
   const isOnline = activeDevice && (deviceStatuses[activeDevice.externalId] || activeDevice.status) === 'online'
+
+  const tempUnitLabel = getTempUnit() === 'F' ? '°F' : '°C';
+  const displayChartsData = React.useMemo(() => {
+    if (getTempUnit() === 'F') {
+      return chartsData?.map(item => ({
+        ...item,
+        temperature: item.temperature !== undefined && item.temperature !== null 
+          ? Number((item.temperature * 1.8 + 32).toFixed(1))
+          : item.temperature
+      }));
+    }
+    return chartsData;
+  }, [chartsData]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -45,8 +59,12 @@ export default function OverviewTab({
             <span className="metric-card-icon" style={{ color: '#ff7043' }}>🌡️</span>
           </div>
           <div className="metric-card-value">
-            {latest ? (typeof latest.temperature === 'number' ? latest.temperature.toFixed(2) : latest.temperature) : '26.50'}
-            <span className="metric-card-unit">°C</span>
+            {latest 
+              ? (typeof latest.temperature === 'number' 
+                ? convertTemp(latest.temperature).toFixed(2) 
+                : latest.temperature) 
+              : convertTemp(26.5).toFixed(2)}
+            <span className="metric-card-unit">°{getTempUnit()}</span>
           </div>
         </div>
 
@@ -104,7 +122,7 @@ export default function OverviewTab({
 
           <div style={{ height: 260 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartsData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+              <AreaChart data={displayChartsData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#ff7043" stopOpacity={0.2} />
@@ -133,7 +151,7 @@ export default function OverviewTab({
                 <Area
                   type="monotone"
                   dataKey="temperature"
-                  name="Nhiệt độ (°C)"
+                  name={`Nhiệt độ (${tempUnitLabel})`}
                   stroke="#ff7043"
                   strokeWidth={2}
                   fillOpacity={1}
