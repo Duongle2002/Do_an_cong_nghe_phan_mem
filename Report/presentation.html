@@ -1,0 +1,2343 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bài Thuyết Trình — Hệ Thống Giám Sát & Quản Lý Tưới Tiêu IoT + TinyML</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap"
+    rel="stylesheet">
+  <style>
+    /* ═══════════════════════════════════════
+   RESET & GLOBALS
+   ═══════════════════════════════════════ */
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #0a0e17;
+      --bg-card: #111827;
+      --bg-card-alt: #161f30;
+      --border: #1e2d3d;
+      --green: #10b981;
+      --green-dim: rgba(16, 185, 129, .15);
+      --green-glow: rgba(16, 185, 129, .35);
+      --amber: #f59e0b;
+      --amber-dim: rgba(245, 158, 11, .15);
+      --blue: #3b82f6;
+      --blue-dim: rgba(59, 130, 246, .15);
+      --purple: #8b5cf6;
+      --purple-dim: rgba(139, 92, 246, .15);
+      --red: #ef4444;
+      --red-dim: rgba(239, 68, 68, .15);
+      --cyan: #06b6d4;
+      --cyan-dim: rgba(6, 182, 212, .15);
+      --text: #f1f5f9;
+      --text-dim: #94a3b8;
+      --text-muted: #64748b;
+      --radius: 16px;
+      --font: 'Inter', -apple-system, sans-serif;
+      --mono: 'JetBrains Mono', monospace;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ═══════════════════════════════════════
+   SLIDE ENGINE
+   ═══════════════════════════════════════ */
+    .deck {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      padding: 50px 70px;
+      opacity: 0;
+      transform: translateX(60px);
+      pointer-events: none;
+      transition: opacity .55s cubic-bezier(.4, 0, .2, 1), transform .55s cubic-bezier(.4, 0, .2, 1);
+      overflow-y: auto;
+    }
+
+    .slide.active {
+      opacity: 1;
+      transform: translateX(0);
+      pointer-events: auto;
+    }
+
+    .slide.prev {
+      opacity: 0;
+      transform: translateX(-60px);
+    }
+
+    /* ═══════════════════════════════════════
+   BACKGROUND DECORATION
+   ═══════════════════════════════════════ */
+    body::before {
+      content: '';
+      position: fixed;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(ellipse at 20% 50%, rgba(16, 185, 129, .06) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 20%, rgba(59, 130, 246, .04) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 80%, rgba(139, 92, 246, .04) 0%, transparent 50%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .deck {
+      z-index: 1;
+      position: relative;
+    }
+
+    /* Grid pattern overlay */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: linear-gradient(rgba(255, 255, 255, .012) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, .012) 1px, transparent 1px);
+      background-size: 60px 60px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ═══════════════════════════════════════
+   TYPOGRAPHY
+   ═══════════════════════════════════════ */
+    .slide-number {
+      position: absolute;
+      top: 22px;
+      right: 30px;
+      font-size: 12px;
+      color: var(--text-muted);
+      font-family: var(--mono);
+      letter-spacing: 1px;
+    }
+
+    .chapter-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      border-radius: 100px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+    }
+
+    .chapter-badge.green {
+      background: var(--green-dim);
+      color: var(--green);
+      border: 1px solid rgba(16, 185, 129, .3);
+    }
+
+    .chapter-badge.blue {
+      background: var(--blue-dim);
+      color: var(--blue);
+      border: 1px solid rgba(59, 130, 246, .3);
+    }
+
+    .chapter-badge.purple {
+      background: var(--purple-dim);
+      color: var(--purple);
+      border: 1px solid rgba(139, 92, 246, .3);
+    }
+
+    .chapter-badge.amber {
+      background: var(--amber-dim);
+      color: var(--amber);
+      border: 1px solid rgba(245, 158, 11, .3);
+    }
+
+    .chapter-badge.cyan {
+      background: var(--cyan-dim);
+      color: var(--cyan);
+      border: 1px solid rgba(6, 182, 212, .3);
+    }
+
+    .chapter-badge.red {
+      background: var(--red-dim);
+      color: var(--red);
+      border: 1px solid rgba(239, 68, 68, .3);
+    }
+
+    h1 {
+      font-size: 44px;
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -1px;
+      margin-bottom: 16px;
+    }
+
+    h2 {
+      font-size: 32px;
+      font-weight: 700;
+      line-height: 1.2;
+      margin-bottom: 14px;
+    }
+
+    h3 {
+      font-size: 22px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: var(--text);
+    }
+
+    p,
+    li {
+      font-size: 17px;
+      line-height: 1.7;
+      color: var(--text-dim);
+    }
+
+    .subtitle {
+      font-size: 20px;
+      color: var(--text-dim);
+      font-weight: 400;
+      margin-bottom: 30px;
+      line-height: 1.6;
+    }
+
+    .highlight {
+      color: var(--green);
+      font-weight: 600;
+    }
+
+    .highlight-amber {
+      color: var(--amber);
+      font-weight: 600;
+    }
+
+    .highlight-blue {
+      color: var(--blue);
+      font-weight: 600;
+    }
+
+    .highlight-purple {
+      color: var(--purple);
+      font-weight: 600;
+    }
+
+    .highlight-cyan {
+      color: var(--cyan);
+      font-weight: 600;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    ul li {
+      position: relative;
+      padding-left: 24px;
+      margin-bottom: 10px;
+    }
+
+    ul li::before {
+      content: '▸';
+      position: absolute;
+      left: 0;
+      top: 0;
+      color: var(--green);
+      font-weight: 700;
+    }
+
+    /* ═══════════════════════════════════════
+   LAYOUT HELPERS
+   ═══════════════════════════════════════ */
+    .row {
+      display: flex;
+      gap: 28px;
+      flex-wrap: wrap;
+    }
+
+    .col {
+      flex: 1;
+      min-width: 260px;
+    }
+
+    .col-2 {
+      flex: 2;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      transition: border-color .3s, box-shadow .3s;
+    }
+
+    .card:hover {
+      border-color: rgba(16, 185, 129, .3);
+      box-shadow: 0 0 30px rgba(16, 185, 129, .06);
+    }
+
+    .card h3 {
+      font-size: 17px;
+      margin-bottom: 10px;
+    }
+
+    .card p {
+      font-size: 14px;
+    }
+
+    .card-icon {
+      width: 42px;
+      height: 42px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      font-size: 20px;
+      margin-bottom: 14px;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+    }
+
+    .stat-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 34px;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--green), var(--cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-top: 6px;
+    }
+
+    /* Code block */
+    .code-block {
+      background: #0d1117;
+      border: 1px solid #21262d;
+      border-radius: 12px;
+      padding: 18px 22px;
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.7;
+      color: #c9d1d9;
+      overflow-x: auto;
+      white-space: pre;
+    }
+
+    .code-block .kw {
+      color: #ff7b72;
+    }
+
+    .code-block .fn {
+      color: #d2a8ff;
+    }
+
+    .code-block .str {
+      color: #a5d6ff;
+    }
+
+    .code-block .cm {
+      color: #8b949e;
+    }
+
+    .code-block .num {
+      color: #79c0ff;
+    }
+
+    .code-block .type {
+      color: #ffa657;
+    }
+
+    /* Table */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th,
+    td {
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      background: rgba(255, 255, 255, .02);
+    }
+
+    td {
+      color: var(--text-dim);
+    }
+
+    tr:hover td {
+      background: rgba(16, 185, 129, .03);
+    }
+
+    /* Flow diagram */
+    .flow {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      font-size: 13px;
+      font-weight: 600;
+      margin: 16px 0;
+    }
+
+    .flow-node {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 16px;
+      white-space: nowrap;
+    }
+
+    .flow-node.active {
+      border-color: var(--green);
+      background: var(--green-dim);
+      color: var(--green);
+    }
+
+    .flow-arrow {
+      color: var(--text-muted);
+      font-size: 18px;
+    }
+
+    /* ═══════════════════════════════════════
+   TITLE SLIDE SPECIAL
+   ═══════════════════════════════════════ */
+    .title-slide {
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 60px;
+    }
+
+    .title-slide h1 {
+      font-size: 48px;
+      background: linear-gradient(135deg, #fff 0%, #10b981 50%, #06b6d4 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 20px;
+    }
+
+    .title-school {
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+      color: var(--text-muted);
+      margin-bottom: 30px;
+      font-weight: 600;
+    }
+
+    .title-divider {
+      width: 80px;
+      height: 3px;
+      background: linear-gradient(90deg, var(--green), var(--cyan));
+      border-radius: 3px;
+      margin: 0 auto 30px;
+    }
+
+    .title-meta {
+      font-size: 16px;
+      color: var(--text-dim);
+      line-height: 2;
+    }
+
+    .title-meta strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    /* ═══════════════════════════════════════
+   PROGRESS BAR
+   ═══════════════════════════════════════ */
+    .progress-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--green), var(--cyan));
+      transition: width .4s ease;
+      z-index: 100;
+    }
+
+    /* ═══════════════════════════════════════
+   NAVIGATION
+   ═══════════════════════════════════════ */
+    .nav-controls {
+      position: fixed;
+      bottom: 24px;
+      right: 30px;
+      display: flex;
+      gap: 10px;
+      z-index: 100;
+    }
+
+    .nav-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-dim);
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all .2s;
+    }
+
+    .nav-btn:hover {
+      border-color: var(--green);
+      color: var(--green);
+      background: var(--green-dim);
+    }
+
+    .slide-counter {
+      position: fixed;
+      bottom: 30px;
+      left: 30px;
+      font-size: 13px;
+      color: var(--text-muted);
+      font-family: var(--mono);
+      z-index: 100;
+    }
+
+    /* ═══════════════════════════════════════
+   ARCHITECTURE DIAGRAM (CSS-based)
+   ═══════════════════════════════════════ */
+    .arch-layers {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .arch-layer {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    .arch-label {
+      width: 160px;
+      min-width: 160px;
+      padding: 14px 18px;
+      font-weight: 700;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      letter-spacing: .5px;
+    }
+
+    .arch-content {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 20px;
+      background: var(--bg-card);
+      font-size: 13px;
+      color: var(--text-dim);
+      flex-wrap: wrap;
+    }
+
+    .arch-chip {
+      padding: 5px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .layer-green .arch-label {
+      background: rgba(16, 185, 129, .15);
+      color: var(--green);
+    }
+
+    .layer-green .arch-chip {
+      background: rgba(16, 185, 129, .12);
+      color: var(--green);
+      border: 1px solid rgba(16, 185, 129, .25);
+    }
+
+    .layer-blue .arch-label {
+      background: rgba(59, 130, 246, .15);
+      color: var(--blue);
+    }
+
+    .layer-blue .arch-chip {
+      background: rgba(59, 130, 246, .12);
+      color: var(--blue);
+      border: 1px solid rgba(59, 130, 246, .25);
+    }
+
+    .layer-purple .arch-label {
+      background: rgba(139, 92, 246, .15);
+      color: var(--purple);
+    }
+
+    .layer-purple .arch-chip {
+      background: rgba(139, 92, 246, .12);
+      color: var(--purple);
+      border: 1px solid rgba(139, 92, 246, .25);
+    }
+
+    .layer-amber .arch-label {
+      background: rgba(245, 158, 11, .15);
+      color: var(--amber);
+    }
+
+    .layer-amber .arch-chip {
+      background: rgba(245, 158, 11, .12);
+      color: var(--amber);
+      border: 1px solid rgba(245, 158, 11, .25);
+    }
+
+    /* ═══════════════════════════════════════
+   RESPONSIVE MINI
+   ═══════════════════════════════════════ */
+    @media (max-width: 900px) {
+      .slide {
+        padding: 30px 28px;
+      }
+
+      h1 {
+        font-size: 32px;
+      }
+
+      h2 {
+        font-size: 24px;
+      }
+
+      .row {
+        flex-direction: column;
+      }
+
+      .title-slide h1 {
+        font-size: 32px;
+      }
+    }
+
+    /* ═══════════════════════════════════════
+   ANIMATION: stagger children
+   ═══════════════════════════════════════ */
+    .slide.active .anim {
+      animation: fadeUp .5s ease forwards;
+    }
+
+    .slide.active .anim:nth-child(1) {
+      animation-delay: .05s;
+    }
+
+    .slide.active .anim:nth-child(2) {
+      animation-delay: .12s;
+    }
+
+    .slide.active .anim:nth-child(3) {
+      animation-delay: .19s;
+    }
+
+    .slide.active .anim:nth-child(4) {
+      animation-delay: .26s;
+    }
+
+    .slide.active .anim:nth-child(5) {
+      animation-delay: .33s;
+    }
+
+    .slide.active .anim:nth-child(6) {
+      animation-delay: .40s;
+    }
+
+    .slide.active .anim:nth-child(7) {
+      animation-delay: .47s;
+    }
+
+    .slide.active .anim:nth-child(8) {
+      animation-delay: .54s;
+    }
+
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(18px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .anim {
+      opacity: 0;
+    }
+
+    /* Sidebar mini TOC */
+    .mini-toc {
+      position: fixed;
+      top: 50%;
+      left: 18px;
+      transform: translateY(-50%);
+      z-index: 99;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .toc-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--border);
+      cursor: pointer;
+      transition: all .25s;
+    }
+
+    .toc-dot.active {
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green-glow);
+      transform: scale(1.4);
+    }
+
+    .toc-dot:hover {
+      background: var(--green);
+      transform: scale(1.3);
+    }
+
+    /* ═══════════════════════════════════════
+       SEQUENCE DIAGRAM CSS
+       ═══════════════════════════════════════ */
+    .sequence-diagram {
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 30px;
+      margin-top: 20px;
+      position: relative;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+    
+    .diagram-headers {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      text-align: center;
+      border-bottom: 1.5px solid var(--border);
+      padding-bottom: 18px;
+      margin-bottom: 24px;
+      position: relative;
+      z-index: 2;
+    }
+    
+    .header-col {
+      padding: 10px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      background: rgba(255, 255, 255, 0.015);
+      border: 1px solid rgba(255, 255, 255, 0.03);
+    }
+    
+    .header-col.wroom { color: var(--green); border-color: rgba(16, 185, 129, 0.2); background: rgba(16, 185, 129, 0.03); }
+    .header-col.mqtt { color: var(--amber); border-color: rgba(245, 158, 11, 0.2); background: rgba(245, 158, 11, 0.03); }
+    .header-col.server { color: var(--purple); border-color: rgba(139, 92, 246, 0.2); background: rgba(139, 92, 246, 0.03); }
+    .header-col.s3 { color: var(--cyan); border-color: rgba(6, 182, 212, 0.2); background: rgba(6, 182, 212, 0.03); }
+    
+    .header-col small {
+      display: block;
+      font-size: 10px;
+      color: var(--text-dim);
+      font-weight: 500;
+      text-transform: none;
+      margin-top: 4px;
+    }
+    
+    .diagram-body {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      padding-bottom: 20px;
+    }
+    
+    .diagram-body::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: 
+        linear-gradient(90deg, transparent calc(12.5% - 1px), var(--border) calc(12.5% - 1px), var(--border) calc(12.5% + 1px), transparent calc(12.5% + 1px)),
+        linear-gradient(90deg, transparent calc(37.5% - 1px), var(--border) calc(37.5% - 1px), var(--border) calc(37.5% + 1px), transparent calc(37.5% + 1px)),
+        linear-gradient(90deg, transparent calc(62.5% - 1px), var(--border) calc(62.5% - 1px), var(--border) calc(62.5% + 1px), transparent calc(62.5% + 1px)),
+        linear-gradient(90deg, transparent calc(87.5% - 1px), var(--border) calc(87.5% - 1px), var(--border) calc(87.5% + 1px), transparent calc(87.5% + 1px));
+      pointer-events: none;
+      z-index: 1;
+    }
+    
+    .diagram-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      position: relative;
+      align-items: center;
+      min-height: 48px;
+    }
+    
+    .diagram-card {
+      background: var(--bg-card-alt);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 11px;
+      z-index: 10;
+      width: 85%;
+      margin: 0 auto;
+      text-align: center;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      border-left: 3px solid var(--border);
+    }
+    
+    .diagram-card.col-1 { grid-column: 1; border-left-color: var(--green); }
+    .diagram-card.col-3 { grid-column: 3; border-left-color: var(--purple); }
+    .diagram-card.col-4 { grid-column: 4; border-left-color: var(--cyan); }
+    
+    .diagram-card .card-title {
+      display: block;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 3px;
+      font-size: 12px;
+    }
+    
+    .diagram-card .card-desc {
+      display: block;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      line-height: 1.4;
+      font-size: 10px;
+    }
+    
+    .msg-arrow {
+      position: relative;
+      grid-column-start: 1;
+      grid-column-end: 5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 32px;
+      z-index: 5;
+    }
+    
+    .msg-arrow::before {
+      content: '';
+      position: absolute;
+      height: 1.5px;
+      background: var(--border);
+      top: 50%;
+      transform: translateY(-50%);
+    }
+    
+    .msg-arrow::after {
+      content: '▶';
+      position: absolute;
+      font-size: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+    
+    /* Arrow classes */
+    .arrow-1-to-2::before {
+      left: 12.5%;
+      width: 25%;
+      background: linear-gradient(90deg, var(--green), var(--amber));
+    }
+    .arrow-1-to-2::after {
+      left: calc(37.5% - 5px);
+      color: var(--amber);
+    }
+    
+    .arrow-2-to-3::before {
+      left: 37.5%;
+      width: 25%;
+      background: linear-gradient(90deg, var(--amber), var(--purple));
+    }
+    .arrow-2-to-3::after {
+      left: calc(62.5% - 5px);
+      color: var(--purple);
+    }
+    
+    .arrow-3-to-2::before {
+      left: 37.5%;
+      width: 25%;
+      background: linear-gradient(90deg, var(--amber), var(--purple));
+    }
+    .arrow-3-to-2::after {
+      content: '◀';
+      left: calc(37.5% - 3px);
+      color: var(--amber);
+    }
+    
+    .arrow-2-to-4::before {
+      left: 37.5%;
+      width: 50%;
+      background: linear-gradient(90deg, var(--amber), var(--cyan));
+    }
+    .arrow-2-to-4::after {
+      left: calc(87.5% - 5px);
+      color: var(--cyan);
+    }
+    
+    .msg-label {
+      background: #0f121a;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-family: var(--mono);
+      color: var(--text);
+      border: 1px solid var(--border);
+      position: relative;
+      z-index: 6;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Progress Bar -->
+  <div class="progress-bar" id="progressBar"></div>
+
+  <!-- Mini TOC dots -->
+  <div class="mini-toc" id="miniToc"></div>
+
+  <!-- Slide Counter -->
+  <div class="slide-counter" id="slideCounter"></div>
+
+  <!-- Navigation -->
+  <div class="nav-controls">
+    <button class="nav-btn" onclick="prevSlide()" title="Trước (←)">‹</button>
+    <button class="nav-btn" onclick="nextSlide()" title="Tiếp (→)">›</button>
+  </div>
+
+  <!-- ════════════════════════════════════════════
+     SLIDES
+     ════════════════════════════════════════════ -->
+  <div class="deck" id="deck">
+
+    <!-- SLIDE 1: Title -->
+    <section class="slide title-slide" data-chapter="title">
+      <div class="anim title-school">
+        TRƯỜNG ĐẠI HỌC ĐÔNG Á<br>
+        KHOA CÔNG NGHỆ THÔNG TIN
+      </div>
+      <div class="anim title-divider"></div>
+      <h1 class="anim">Xây Dựng Hệ Thống Giám Sát<br>& Quản Lý Tưới Tiêu Cho Cây Trồng</h1>
+      <p class="anim subtitle" style="max-width:700px;">Ứng dụng Internet of Things (IoT) và Trí tuệ Nhân tạo biên
+        TinyML trên vi điều khiển ESP32</p>
+      <div class="anim title-meta">
+        <strong>Sinh viên:</strong> Dương — Na — Thanh &nbsp;|&nbsp; <strong>Nhóm:</strong> 22_26_ST22B<br>
+        <strong>Giảng viên hướng dẫn:</strong> Ths. Tạ Quốc Ý<br>
+        <strong>Năm học:</strong> 2022 – 2026
+      </div>
+    </section>
+
+    <!-- SLIDE 2: Agenda -->
+    <section class="slide" data-chapter="agenda">
+      <div class="anim"><span class="chapter-badge green">📋 NỘI DUNG</span></div>
+      <h2 class="anim">Cấu trúc bài thuyết trình</h2>
+      <div class="row" style="margin-top:20px;">
+        <div class="col anim">
+          <div class="card" style="border-left: 3px solid var(--green);">
+            <div class="card-icon" style="background:var(--green-dim);">🎯</div>
+            <h3>Phần Mở đầu</h3>
+            <p>Lý do chọn đề tài, mục tiêu, phạm vi & phương pháp nghiên cứu</p>
+          </div>
+        </div>
+        <div class="col anim">
+          <div class="card" style="border-left: 3px solid var(--blue);">
+            <div class="card-icon" style="background:var(--blue-dim);">📚</div>
+            <h3>Chương 1 — Cơ sở lý thuyết</h3>
+            <p>IoT, ESP32, TinyML, Node.js, MongoDB, React, Flutter</p>
+          </div>
+        </div>
+        <div class="col anim">
+          <div class="card" style="border-left: 3px solid var(--purple);">
+            <div class="card-icon" style="background:var(--purple-dim);">📐</div>
+            <h3>Chương 2 — Phân tích & Thiết kế</h3>
+            <p>Yêu cầu, UML, Database Schema, API Design</p>
+          </div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:16px;">
+        <div class="col anim">
+          <div class="card" style="border-left: 3px solid var(--amber);">
+            <div class="card-icon" style="background:var(--amber-dim);">💻</div>
+            <h3>Chương 3 — Cài đặt & Thử nghiệm</h3>
+            <p>Mã nguồn, triển khai, kiểm thử, đánh giá kết quả</p>
+          </div>
+        </div>
+        <div class="col anim">
+          <div class="card" style="border-left: 3px solid var(--cyan);">
+            <div class="card-icon" style="background:var(--cyan-dim);">🔮</div>
+            <h3>Chương 4 — Kết luận</h3>
+            <p>Đánh giá ưu/nhược điểm, hướng phát triển tương lai</p>
+          </div>
+        </div>
+        <div class="col anim">
+          <div class="card" style="border-left: 3px solid var(--red);">
+            <div class="card-icon" style="background:var(--red-dim);">🎬</div>
+            <h3>Demo hệ thống</h3>
+            <p>Trình diễn trực tiếp hệ thống hoạt động</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 3: Problem & Motivation -->
+    <section class="slide" data-chapter="intro">
+      <div class="anim"><span class="chapter-badge green">MỞ ĐẦU</span></div>
+      <h2 class="anim">Lý do chọn đề tài & Bối cảnh</h2>
+      <div class="row" style="margin-top:18px;">
+        <div class="col anim">
+          <div class="card">
+            <h3>⚠️ Vấn đề thực tế</h3>
+            <ul>
+              <li>Nông nghiệp VN: <span class="highlight-amber">70% lao động</span> nhưng năng suất thấp</li>
+              <li>Tưới tiêu thủ công: lãng phí <span class="highlight-amber">30-50% nước</span></li>
+              <li>Phụ thuộc kinh nghiệm cá nhân, thiếu dữ liệu khách quan</li>
+              <li>Biến đổi khí hậu → nhu cầu canh tác chính xác</li>
+            </ul>
+          </div>
+        </div>
+        <div class="col anim">
+          <div class="card">
+            <h3>💡 Giải pháp đề xuất</h3>
+            <ul>
+              <li>Hệ thống <span class="highlight">IoT giám sát real-time</span> 4 thông số môi trường</li>
+              <li>Tích hợp <span class="highlight">AI biên (TinyML)</span> quyết định tưới tiêu ngay trên chip</li>
+              <li>Hoạt động <span class="highlight">offline</span> — không phụ thuộc Internet</li>
+              <li>Quản lý đa nền tảng: <span class="highlight">Web + Mobile</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="anim" style="margin-top:24px;">
+        <div class="card" style="border: 1px solid rgba(16,185,129,.3); background: rgba(16,185,129,.04);">
+          <h3 style="color:var(--green);">🎯 Mục tiêu cốt lõi</h3>
+          <p>Xây dựng hệ thống IoT hoàn chỉnh <strong style="color:var(--text);">End-to-End</strong> từ phần cứng (ESP32
+            + cảm biến + TinyML) → Backend (Node.js + MongoDB + MQTT) → Frontend (ReactJS + Flutter), cho phép <strong
+              style="color:var(--text);">tự động hóa tưới tiêu thông minh</strong> dựa trên dữ liệu cảm biến thời gian
+            thực.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 4: System Architecture Overview -->
+    <section class="slide" data-chapter="ch1">
+      <div class="anim"><span class="chapter-badge blue">CHƯƠNG 1 — CƠ SỞ LÝ THUYẾT</span></div>
+      <h2 class="anim">Kiến trúc tổng thể hệ thống — 4 tầng</h2>
+      <div class="anim arch-layers">
+        <div class="arch-layer layer-amber">
+          <div class="arch-label">🖥️ APPLICATION</div>
+          <div class="arch-content">
+            <span class="arch-chip">ReactJS 18 (Vite)</span>
+            <span class="arch-chip">Flutter 3.8</span>
+            <span class="arch-chip">SSE Real-time</span>
+            <span class="arch-chip">Recharts</span>
+          </div>
+        </div>
+        <div class="arch-layer layer-purple">
+          <div class="arch-label">☁️ CLOUD / SERVER</div>
+          <div class="arch-content">
+            <span class="arch-chip">Node.js (Express)</span>
+            <span class="arch-chip">MongoDB Atlas</span>
+            <span class="arch-chip">MQTT Broker (EMQX)</span>
+            <span class="arch-chip">JWT + bcrypt</span>
+            <span class="arch-chip">Nodemailer</span>
+          </div>
+        </div>
+        <div class="arch-layer layer-blue">
+          <div class="arch-label">📡 NETWORK</div>
+          <div class="arch-content">
+            <span class="arch-chip">WiFi 802.11 b/g/n</span>
+            <span class="arch-chip">MQTT (QoS 1)</span>
+            <span class="arch-chip">HTTP REST API</span>
+            <span class="arch-chip">TCP Fallback (Port 8080)</span>
+            <span class="arch-chip">SoftAP Failover</span>
+          </div>
+        </div>
+        <div class="arch-layer layer-green">
+          <div class="arch-label">🔌 PERCEPTION</div>
+          <div class="arch-content">
+            <span class="arch-chip">ESP32 WROOM (Sensor + TinyML)</span>
+            <span class="arch-chip">ESP32-S3 (Controller + OLED)</span>
+            <span class="arch-chip">AHT20 · BMP280 · BH1750</span>
+            <span class="arch-chip">Soil Sensor</span>
+            <span class="arch-chip">Relay 3CH</span>
+          </div>
+        </div>
+      </div>
+      <div class="anim flow" style="margin-top:18px;">
+        <span class="flow-node active">Cảm biến</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-node active">ESP32 WROOM<br><small>TinyML Inference</small></span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-node">MQTT Broker</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-node">Node.js Server</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-node">SSE Push</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-node">Web / Mobile</span>
+      </div>
+    </section>
+
+    <!-- SLIDE 5: Hardware Design — Dual Node -->
+    <section class="slide" data-chapter="ch1">
+      <div class="anim"><span class="chapter-badge blue">CHƯƠNG 1 — PHẦN CỨNG</span></div>
+      <h2 class="anim">Kiến trúc phần cứng hai node ESP32</h2>
+      <div class="row" style="margin-top:16px;">
+        <div class="col anim">
+          <div class="card" style="border-top: 3px solid var(--green);">
+            <h3>🟢 Node Cảm Biến — ESP32 WROOM-32</h3>
+            <table>
+              <tr>
+                <td><strong>CPU</strong></td>
+                <td>Dual-core Xtensa LX6 @ 240MHz</td>
+              </tr>
+              <tr>
+                <td><strong>Nhiệt độ/Độ ẩm</strong></td>
+                <td>AHT20 (I²C) — ±0.3°C / ±2%RH</td>
+              </tr>
+              <tr>
+                <td><strong>Ánh sáng</strong></td>
+                <td>BH1750 (I²C) — 1–65535 lux</td>
+              </tr>
+              <tr>
+                <td><strong>Áp suất</strong></td>
+                <td>BMP280 (I²C) — bổ trợ</td>
+              </tr>
+              <tr>
+                <td><strong>Độ ẩm đất</strong></td>
+                <td>Capacitive v1.2 — ADC Pin 34</td>
+              </tr>
+              <tr>
+                <td><strong>TinyML</strong></td>
+                <td>TFLite Micro — model.h (~2.4KB)</td>
+              </tr>
+              <tr>
+                <td><strong>Kết nối</strong></td>
+                <td>WiFi STA + SoftAP Fallback</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+        <div class="col anim">
+          <div class="card" style="border-top: 3px solid var(--cyan);">
+            <h3>🔵 Node Điều Khiển — ESP32-S3</h3>
+            <table>
+              <tr>
+                <td><strong>CPU</strong></td>
+                <td>Dual-core Xtensa LX7 @ 240MHz</td>
+              </tr>
+              <tr>
+                <td><strong>Relay 3 kênh</strong></td>
+                <td>Quạt (Pin 16), Đèn (17), Bơm (18)</td>
+              </tr>
+              <tr>
+                <td><strong>Nút bấm</strong></td>
+                <td>4 nút: Fan, Light, Pump, Mode</td>
+              </tr>
+              <tr>
+                <td><strong>Màn hình</strong></td>
+                <td>OLED SSD1306 128×64 (I²C)</td>
+              </tr>
+              <tr>
+                <td><strong>Chế độ</strong></td>
+                <td>Manual / Auto / Scheduled</td>
+              </tr>
+              <tr>
+                <td><strong>Kết nối</strong></td>
+                <td>MQTT Subscribe + TCP Client</td>
+              </tr>
+              <tr>
+                <td><strong>An toàn</strong></td>
+                <td>Debounce 50ms, Override timeout 5min</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="anim" style="margin-top:18px;">
+        <div class="card" style="text-align:center; padding: 14px;">
+          <div class="flow" style="justify-content:center;">
+            <span class="flow-node active">🟢 WROOM<br><small>Sensor + AI</small></span>
+            <span class="flow-arrow">── WiFi/MQTT ──→</span>
+            <span class="flow-node" style="border-color:var(--purple);">☁️ Server<br><small>Safety
+                Windows</small></span>
+            <span class="flow-arrow">── MQTT ──→</span>
+            <span class="flow-node" style="border-color:var(--cyan);">🔵 ESP32-S3<br><small>Relay Control</small></span>
+          </div>
+          <p style="font-size:13px; margin-top:8px;">Khi mất WiFi: WROOM phát <span class="highlight">SoftAP</span> → S3
+            kết nối <span class="highlight">TCP:8080</span> → Hoạt động Offline</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 6: TinyML -->
+    <section class="slide" data-chapter="ch1">
+      <div class="anim"><span class="chapter-badge blue">CHƯƠNG 1 — TINYML</span></div>
+      <h2 class="anim">Trí tuệ nhân tạo biên — TensorFlow Lite Micro</h2>
+      <div class="row" style="margin-top:16px;">
+        <div class="col anim">
+          <div class="card">
+            <h3>🧠 Kiến trúc mô hình</h3>
+            <div class="code-block"><span class="fn">Input</span>(<span class="num">4</span>) → <span
+                class="fn">Dense</span>(<span class="num">8</span>, <span class="str">ReLU</span>) → <span
+                class="fn">Dense</span>(<span class="num">3</span>, <span class="str">Sigmoid</span>)
+
+              <span class="cm">// 4 đầu vào (chuẩn hóa Min-Max):</span>
+              temp ∈ [15°C, 45°C]
+              hum ∈ [0%, 100%]
+              soil ∈ [0%, 100%]
+              lux ∈ [0, 5000]
+
+              <span class="cm">// 3 đầu ra (xác suất 0-1):</span>
+              fan → Quạt thông gió
+              light → Đèn chiếu sáng
+              pump → Máy bơm nước
+            </div>
+          </div>
+        </div>
+        <div class="col anim">
+          <div class="card">
+            <h3>⚡ Thông số kỹ thuật</h3>
+            <div class="stat-grid" style="grid-template-columns:1fr 1fr;">
+              <div class="stat-box">
+                <div class="stat-value" style="font-size:26px;">2.4 KB</div>
+                <div class="stat-label">Model Size</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-value" style="font-size:26px;">8 KB</div>
+                <div class="stat-label">Tensor Arena</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-value" style="font-size:26px;">INT8</div>
+                <div class="stat-label">Quantization</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-value" style="font-size:26px;">3 Ops</div>
+                <div class="stat-label">FC · ReLU · Sigmoid</div>
+              </div>
+            </div>
+          </div>
+          <div class="card" style="margin-top:16px;">
+            <h3>🔄 Kỹ thuật Hysteresis</h3>
+            <p>Chống bật/tắt liên tục (flapping) ở vùng biên ngưỡng:</p>
+            <div class="code-block" style="margin-top:8px;"><span class="kw">ON</span> threshold = <span
+                class="num">0.60</span> <span class="cm">// Bật khi xác suất ≥ 60%</span>
+              <span class="kw">OFF</span> threshold = <span class="num">0.45</span> <span class="cm">// Tắt khi xác suất
+                ≤ 45%</span>
+              <span class="cm">// Vùng chết [0.45–0.60]: giữ nguyên trạng thái</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 7: Training Pipeline -->
+    <section class="slide" data-chapter="ch1">
+      <div class="anim"><span class="chapter-badge blue">CHƯƠNG 1 — HUẤN LUYỆN MÔ HÌNH</span></div>
+      <h2 class="anim">Quy trình huấn luyện & triển khai TinyML</h2>
+      <div class="anim flow" style="margin-top:16px; font-size: 12px;">
+        <span class="flow-node">📊 Dataset<br><small>10,000 mẫu CSV</small></span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-node">🔀 Stratified Split<br><small>80% Train / 20% Test</small></span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-node">📏 Min-Max Norm<br><small>4 features</small></span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-node active">🧠 Keras Train<br><small>Adam, BCE, ES</small></span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-node">📦 TFLite Convert<br><small>INT8 Quantize</small></span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-node active">📄 model.h<br><small>C byte array</small></span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-node">🔌 Flash ESP32</span>
+      </div>
+      <div class="row" style="margin-top:20px;">
+        <div class="col anim">
+          <div class="card">
+            <h3>📊 Tập dữ liệu</h3>
+            <table>
+              <tr>
+                <th>Thuộc tính</th>
+                <th>Giá trị</th>
+              </tr>
+              <tr>
+                <td>Tổng mẫu</td>
+                <td><strong>10,000</strong> mẫu</td>
+              </tr>
+              <tr>
+                <td>Features</td>
+                <td>temp, hum, soil, lux (4 cột)</td>
+              </tr>
+              <tr>
+                <td>Labels</td>
+                <td>fan, light, pump (3 cột nhị phân)</td>
+              </tr>
+              <tr>
+                <td>Train / Test</td>
+                <td>8,000 / 2,000 (stratified)</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+        <div class="col anim">
+          <div class="card">
+            <h3>⚙️ Cấu hình huấn luyện</h3>
+            <table>
+              <tr>
+                <th>Tham số</th>
+                <th>Giá trị</th>
+              </tr>
+              <tr>
+                <td>Optimizer</td>
+                <td>Adam (lr=0.001)</td>
+              </tr>
+              <tr>
+                <td>Loss</td>
+                <td>Binary Crossentropy</td>
+              </tr>
+              <tr>
+                <td>Epochs</td>
+                <td>100 (EarlyStopping patience=15)</td>
+              </tr>
+              <tr>
+                <td>Batch Size</td>
+                <td>32</td>
+              </tr>
+              <tr>
+                <td>Quantize</td>
+                <td>Full INT8, 128 representative samples</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 8: Backend Stack -->
+    <section class="slide" data-chapter="ch1">
+      <div class="anim"><span class="chapter-badge blue">CHƯƠNG 1 — BACKEND</span></div>
+      <h2 class="anim">Node.js (Express) + MongoDB Atlas + MQTT</h2>
+      <div class="row" style="margin-top:16px;">
+        <div class="col anim">
+          <div class="card">
+            <h3>🏗️ Kiến trúc MVC phân lớp</h3>
+            <div class="code-block"><span class="cm">smart-farm-server/src/</span>
+              ├── <span class="type">app.js</span> <span class="cm">← Express + SSE</span>
+              ├── <span class="type">server.js</span> <span class="cm">← Bootstrap</span>
+              ├── models/ <span class="cm">← 9 Mongoose schemas</span>
+              │ ├── User, Device, SensorData
+              │ ├── Command, Schedule, Alert
+              │ ├── AlertRule, AuthToken, SystemLog
+              ├── controllers/ <span class="cm">← 9 controllers</span>
+              ├── routes/ <span class="cm">← 9 route files</span>
+              ├── services/ <span class="cm">← Alert, Email, Scheduler</span>
+              ├── integrations/ <span class="cm">← mqtt.js (448 LOC)</span>
+              └── middleware/ <span class="cm">← JWT auth, Error handler</span></div>
+          </div>
+        </div>
+        <div class="col anim">
+          <div class="card">
+            <h3>🔒 Bảo mật & Middleware</h3>
+            <ul>
+              <li><span class="highlight">JWT</span> — Access Token + Refresh Token</li>
+              <li><span class="highlight">bcryptjs</span> — Mã hóa mật khẩu</li>
+              <li><span class="highlight">Helmet</span> — HTTP Security Headers</li>
+              <li><span class="highlight">Rate Limiting</span> — 120 req/phút</li>
+              <li><span class="highlight">CORS</span> — Cross-Origin policy</li>
+            </ul>
+          </div>
+          <div class="card" style="margin-top:14px;">
+            <h3>📡 Real-time Data Pipeline</h3>
+            <div class="flow" style="font-size:12px;">
+              <span class="flow-node active">ESP32 MQTT</span>
+              <span class="flow-arrow">→</span>
+              <span class="flow-node">mqtt.js Router</span>
+              <span class="flow-arrow">→</span>
+              <span class="flow-node">MongoDB Save</span>
+            </div>
+            <div class="flow" style="font-size:12px; margin-top:4px;">
+              <span class="flow-node">Alert Check</span>
+              <span class="flow-arrow">→</span>
+              <span class="flow-node">Email (Nodemailer)</span>
+            </div>
+            <div class="flow" style="font-size:12px; margin-top:4px;">
+              <span class="flow-node active">SSE Push</span>
+              <span class="flow-arrow">→</span>
+              <span class="flow-node">Web / Mobile</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 9: Chapter 2 — Requirements -->
+    <section class="slide" data-chapter="ch2">
+      <div class="anim"><span class="chapter-badge purple">CHƯƠNG 2 — PHÂN TÍCH</span></div>
+      <h2 class="anim">Phân tích yêu cầu hệ thống</h2>
+      <div class="row" style="margin-top:16px;">
+        <div class="col-2 anim">
+          <div class="card">
+            <h3>✅ Yêu cầu chức năng chính (10 FR)</h3>
+            <table>
+              <tr>
+                <th style="width:70px">Mã</th>
+                <th>Yêu cầu</th>
+                <th style="width:200px">Mô tả tóm tắt</th>
+              </tr>
+              <tr>
+                <td><span class="highlight">FR-01</span></td>
+                <td>Đăng ký / Đăng nhập</td>
+                <td>JWT Auth, Farmer/Admin</td>
+              </tr>
+              <tr>
+                <td><span class="highlight">FR-02</span></td>
+                <td>Quản lý thiết bị IoT</td>
+                <td>CRUD + Auto-provision MQTT</td>
+              </tr>
+              <tr>
+                <td><span class="highlight">FR-03</span></td>
+                <td>Giám sát cảm biến real-time</td>
+                <td>SSE stream 4 metrics</td>
+              </tr>
+              <tr>
+                <td><span class="highlight">FR-04</span></td>
+                <td>Điều khiển thiết bị từ xa</td>
+                <td>MQTT command + ACK</td>
+              </tr>
+              <tr>
+                <td><span class="highlight-amber">FR-05</span></td>
+                <td>Tự động hóa bằng TinyML</td>
+                <td>AI trên ESP32 quyết định</td>
+              </tr>
+              <tr>
+                <td><span class="highlight">FR-06</span></td>
+                <td>Đa chế độ vận hành</td>
+                <td>Manual / Auto / Scheduled</td>
+              </tr>
+              <tr>
+                <td><span class="highlight">FR-07</span></td>
+                <td>Lịch trình tưới</td>
+                <td>Hẹn giờ daily/weekly</td>
+              </tr>
+              <tr>
+                <td><span class="highlight-amber">FR-08</span></td>
+                <td>Cảnh báo bất thường</td>
+                <td>AlertRule + Email notify</td>
+              </tr>
+              <tr>
+                <td><span class="highlight">FR-09</span></td>
+                <td>Biểu đồ phân tích</td>
+                <td>Recharts lịch sử sensor</td>
+              </tr>
+              <tr>
+                <td><span class="highlight-amber">FR-10</span></td>
+                <td>Safety Windows</td>
+                <td>Giới hạn giờ bơm Auto</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+        <div class="col anim">
+          <div class="card">
+            <h3>🛡️ Yêu cầu phi chức năng (6 NFR)</h3>
+            <ul>
+              <li><span class="highlight-cyan">Hiệu năng:</span> Độ trễ End-to-End &lt; 2 giây</li>
+              <li><span class="highlight-cyan">Offline:</span> Fallback TCP/SoftAP</li>
+              <li><span class="highlight-cyan">Bảo mật:</span> bcrypt + JWT + Helmet</li>
+              <li><span class="highlight-cyan">AI nhỏ gọn:</span> Model ≤ 2.4KB, Arena ≤ 8KB</li>
+              <li><span class="highlight-cyan">Mở rộng:</span> API-first, thêm device linh hoạt</li>
+              <li><span class="highlight-cyan">Đa nền tảng:</span> Web + iOS + Android</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 10: Database Schema -->
+    <section class="slide" data-chapter="ch2">
+      <div class="anim"><span class="chapter-badge purple">CHƯƠNG 2 — CƠ SỞ DỮ LIỆU</span></div>
+      <h2 class="anim">Thiết kế MongoDB Atlas — 9 Collections</h2>
+      <div class="row" style="margin-top:16px;">
+        <div class="col anim">
+          <div class="stat-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+            <div class="stat-box" style="border-top:3px solid var(--green);">
+              <div style="font-size:24px;">👤</div>
+              <div class="stat-label" style="margin-top:6px;font-size:11px;">users</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">name, email, passwordHash, role</div>
+            </div>
+            <div class="stat-box" style="border-top:3px solid var(--blue);">
+              <div style="font-size:24px;">📟</div>
+              <div class="stat-label" style="margin-top:6px;font-size:11px;">devices</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">externalId, opMode, pairedSensorId,
+                safetyWindows</div>
+            </div>
+            <div class="stat-box" style="border-top:3px solid var(--cyan);">
+              <div style="font-size:24px;">📊</div>
+              <div class="stat-label" style="margin-top:6px;font-size:11px;">sensordatas</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">temperature, humidity, soil, lux,
+                timestamp</div>
+            </div>
+            <div class="stat-box" style="border-top:3px solid var(--amber);">
+              <div style="font-size:24px;">🎮</div>
+              <div class="stat-label" style="margin-top:6px;font-size:11px;">commands</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">target, action, status, executedAt
+              </div>
+            </div>
+            <div class="stat-box" style="border-top:3px solid var(--purple);">
+              <div style="font-size:24px;">⏰</div>
+              <div class="stat-label" style="margin-top:6px;font-size:11px;">schedules</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">target, time, repeat, active</div>
+            </div>
+            <div class="stat-box" style="border-top:3px solid var(--red);">
+              <div style="font-size:24px;">🚨</div>
+              <div class="stat-label" style="margin-top:6px;font-size:11px;">alertrules</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">metric, min/maxThreshold, cooldown
+              </div>
+            </div>
+            <div class="stat-box">
+              <div style="font-size:24px;">⚠️</div>
+              <div class="stat-label" style="margin-top:6px;font-size:11px;">alerts</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">type, message, read</div>
+            </div>
+            <div class="stat-box">
+              <div style="font-size:24px;">🔑</div>
+              <div class="stat-label" style="margin-top:6px;font-size:11px;">authtokens</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">accessToken, refreshToken, expiry
+              </div>
+            </div>
+            <div class="stat-box">
+              <div style="font-size:24px;">📝</div>
+              <div class="stat-label" style="margin-top:6px;font-size:11px;">systemlogs</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">actor, action, details</div>
+            </div>
+          </div>
+        </div>
+        <div class="col anim">
+          <div class="card">
+            <h3>🔗 Quan hệ tham chiếu (ERD)</h3>
+            <div class="code-block" style="font-size:12px;">User ──(1:N)──→ Device
+              │ │
+              │ ├──(1:N)──→ SensorData
+              │ ├──(1:N)──→ Command
+              │ ├──(1:N)──→ Schedule
+              │ ├──(1:N)──→ AlertRule
+              │ └──(1:N)──→ Alert
+              │
+              └──(1:N)──→ AuthToken
+
+              <span class="cm">// Device.pairedSensorId → Device.externalId</span>
+              <span class="cm">// (S3 Controller ↔ WROOM Sensor ghép cặp)</span>
+            </div>
+          </div>
+          <div class="card" style="margin-top:14px;">
+            <h3>🔍 Index tối ưu truy vấn</h3>
+            <div class="code-block" style="font-size:12px;"><span class="cm">// Time-series query optimization</span>
+              SensorData: { <span class="str">deviceId</span>: 1, <span class="str">timestamp</span>: -1 }
+
+              <span class="cm">// Unique device identifier</span>
+              Device: { <span class="str">externalId</span>: unique, sparse }
+
+              <span class="cm">// One rule per device+metric</span>
+              AlertRule: { <span class="str">deviceId</span>: 1, <span class="str">metric</span>: 1 } unique
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 11: MQTT Topic & API Design -->
+    <section class="slide" data-chapter="ch2">
+      <div class="anim"><span class="chapter-badge purple">CHƯƠNG 2 — GIAO TIẾP</span></div>
+      <h2 class="anim">Thiết kế MQTT Topics & RESTful API</h2>
+      <div class="row" style="margin-top:16px;">
+        <div class="col anim">
+          <div class="card">
+            <h3>📡 Cấu trúc MQTT Topic</h3>
+            <table style="font-size:13px;">
+              <tr>
+                <th>Topic</th>
+                <th>Hướng</th>
+                <th>Chức năng</th>
+              </tr>
+              <tr>
+                <td><code style="color:var(--green);">farm/{id}/telemetry</code></td>
+                <td>WROOM → Server</td>
+                <td>Dữ liệu cảm biến</td>
+              </tr>
+              <tr>
+                <td><code style="color:var(--amber);">farm/{id}/ai_state</code></td>
+                <td>WROOM → Server</td>
+                <td>Quyết định AI</td>
+              </tr>
+              <tr>
+                <td><code style="color:var(--blue);">farm/{id}/state</code></td>
+                <td>Server → S3</td>
+                <td>Trạng thái relay</td>
+              </tr>
+              <tr>
+                <td><code style="color:var(--purple);">farm/{id}/control/{target}</code></td>
+                <td>Server → S3</td>
+                <td>Lệnh ON/OFF</td>
+              </tr>
+              <tr>
+                <td><code style="color:var(--cyan);">farm/{id}/config</code></td>
+                <td>Server → S3</td>
+                <td>Cấu hình (retained)</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+        <div class="col anim">
+          <div class="card">
+            <h3>🌐 RESTful API Endpoints</h3>
+            <table style="font-size:13px;">
+              <tr>
+                <th>Module</th>
+                <th>Endpoints</th>
+              </tr>
+              <tr>
+                <td><span class="highlight">Auth</span></td>
+                <td>POST /register, /login, /refresh</td>
+              </tr>
+              <tr>
+                <td><span class="highlight-blue">Devices</span></td>
+                <td>GET/POST/PUT/PATCH/DELETE</td>
+              </tr>
+              <tr>
+                <td><span class="highlight-cyan">Sensors</span></td>
+                <td>GET /device/:id, /latest/:id</td>
+              </tr>
+              <tr>
+                <td><span class="highlight-amber">Commands</span></td>
+                <td>POST /, GET /device/:id</td>
+              </tr>
+              <tr>
+                <td><span class="highlight-purple">Schedules</span></td>
+                <td>CRUD /api/schedules</td>
+              </tr>
+              <tr>
+                <td>Alerts</td>
+                <td>GET /device/:id, PUT /:id/read</td>
+              </tr>
+              <tr>
+                <td>Alert Rules</td>
+                <td>CRUD /api/alert-rules</td>
+              </tr>
+              <tr>
+                <td><span class="highlight">SSE Stream</span></td>
+                <td>GET /stream/devices/:externalId</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 12: Sequence Diagram — TinyML Flow -->
+    <section class="slide" data-chapter="ch2">
+      <div class="anim"><span class="chapter-badge purple">CHƯƠNG 2 — SƠ ĐỒ TUẦN TỰ</span></div>
+      <h2 class="anim">Luồng suy luận TinyML & điều khiển tự động</h2>
+      <div class="anim sequence-diagram" style="margin-top:20px;">
+        <!-- Headers -->
+        <div class="diagram-headers">
+          <div class="header-col wroom">🟢 ESP32 WROOM<small>Cảm biến & TinyML</small></div>
+          <div class="header-col mqtt">📡 MQTT Broker<small>EMQX Cloud</small></div>
+          <div class="header-col server">☁️ Node.js Server<small>Backend Logic</small></div>
+          <div class="header-col s3">🔵 ESP32-S3<small>Bộ điều khiển Relay</small></div>
+        </div>
+        
+        <!-- Body -->
+        <div class="diagram-body">
+          <!-- Step 1: Read sensors -->
+          <div class="diagram-row">
+            <div class="diagram-card col-1">
+              <span class="card-title">1. Đọc Cảm Biến</span>
+              <span class="card-desc">SensorManager.read()<br>AHT20 + BH1750 + Soil</span>
+            </div>
+          </div>
+          
+          <!-- Step 2: Normalize -->
+          <div class="diagram-row">
+            <div class="diagram-card col-1">
+              <span class="card-title">2. Chuẩn Hóa Min-Max</span>
+              <span class="card-desc">normalizeRange() -> [0, 1]</span>
+            </div>
+          </div>
+          
+          <!-- Step 3: TinyML Micro Inference -->
+          <div class="diagram-row">
+            <div class="diagram-card col-1">
+              <span class="card-title">3. Dự Đoán TinyML</span>
+              <span class="card-desc">MicroInterpreter.Invoke()<br>Hysteresis (ON>=0.60/OFF<=0.45)</span>
+            </div>
+          </div>
+          
+          <!-- Step 4: Publish AI state -->
+          <div class="diagram-row">
+            <div class="msg-arrow arrow-1-to-2">
+              <span class="msg-label">Pub: farm/{id}/ai_state</span>
+            </div>
+          </div>
+          
+          <!-- Step 5: Forward payload -->
+          <div class="diagram-row">
+            <div class="msg-arrow arrow-2-to-3">
+              <span class="msg-label">Forward to Node.js</span>
+            </div>
+          </div>
+          
+          <!-- Step 6: Server Process logic -->
+          <div class="diagram-row">
+            <div class="diagram-card col-3">
+              <span class="card-title">6. Backend Filter & Check</span>
+              <span class="card-desc">checkSafetyWindows()<br>filterByOpMode()</span>
+            </div>
+          </div>
+          
+          <!-- Step 7: Server Publish control command -->
+          <div class="diagram-row">
+            <div class="msg-arrow arrow-3-to-2">
+              <span class="msg-label">Pub: farm/{id}/state</span>
+            </div>
+          </div>
+          
+          <!-- Step 8: Forward command to S3 Controller -->
+          <div class="diagram-row">
+            <div class="msg-arrow arrow-2-to-4">
+              <span class="msg-label">Forward to ESP32-S3</span>
+            </div>
+          </div>
+          
+          <!-- Step 9: Control Relay -->
+          <div class="diagram-row">
+            <div class="diagram-card col-4">
+              <span class="card-title">9. Kích Hoạt Thiết Bị</span>
+              <span class="card-desc">RelayManager.setAutoControl()<br>Relay Bơm/Quạt/Đèn ON/OFF</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 13: Chapter 3 — Source Code Structure -->
+    <section class="slide" data-chapter="ch3">
+      <div class="anim"><span class="chapter-badge amber">CHƯƠNG 3 — MÃ NGUỒN</span></div>
+      <h2 class="anim">Cấu trúc mã nguồn — 4 thành phần chính</h2>
+      <div class="stat-grid anim" style="grid-template-columns: repeat(4, 1fr); margin-top:18px;">
+        <div class="stat-box" style="border-top:3px solid var(--green);">
+          <div class="stat-value" style="font-size:20px;">23 files</div>
+          <div class="stat-label">ESP32 Hardware</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">C/C++ · Arduino IDE</div>
+        </div>
+        <div class="stat-box" style="border-top:3px solid var(--purple);">
+          <div class="stat-value" style="font-size:20px;">36 files</div>
+          <div class="stat-label">Backend</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">Node.js · Express</div>
+        </div>
+        <div class="stat-box" style="border-top:3px solid var(--blue);">
+          <div class="stat-value" style="font-size:20px;">23 files</div>
+          <div class="stat-label">Web Dashboard</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">ReactJS · Vite</div>
+        </div>
+        <div class="stat-box" style="border-top:3px solid var(--cyan);">
+          <div class="stat-value" style="font-size:20px;">20 files</div>
+          <div class="stat-label">Mobile App</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">Flutter · Dart</div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:20px;">
+        <div class="col anim">
+          <div class="card">
+            <h3>🟢 ESP32 WROOM — Sensor + TinyML</h3>
+            <div class="code-block" style="font-size:12px;">esp32_wroom_env_l298n/
+              ├── <span class="type">esp32_wroom_env_l298n.ino</span> <span class="cm">← Main</span>
+              ├── <span class="fn">sensor_manager</span>.h/.cpp <span class="cm">← AHT20/BMP280/BH1750</span>
+              ├── <span class="fn">tinyml_manager</span>.h/.cpp <span class="cm">← TFLM inference</span>
+              ├── <span class="fn">app_network_manager</span>.h/.cpp<span class="cm">← WiFi/MQTT/TCP</span>
+              ├── <span class="type">model.h</span> <span class="cm">← TFLite weights</span>
+              ├── <span class="type">config.h</span> <span class="cm">← Pinout/Thresholds</span>
+              ├── <span class="type">shared_protocol.h</span> <span class="cm">← SmartFarmData struct</span>
+              └── <span class="type">wifi_config_portal.h</span> <span class="cm">← Captive Portal</span></div>
+          </div>
+        </div>
+        <div class="col anim">
+          <div class="card">
+            <h3>🔵 ESP32-S3 — Controller + OLED</h3>
+            <div class="code-block" style="font-size:12px;">esp32_s3_mqtt_broker_controller/
+              ├── <span class="type">esp32_s3_mqtt_broker_controller.ino</span>
+              ├── <span class="fn">relay_manager</span>.h/.cpp <span class="cm">← 3CH relay + 4 buttons</span>
+              ├── <span class="fn">display_manager</span>.h/.cpp <span class="cm">← OLED SSD1306</span>
+              ├── <span class="fn">app_network_manager</span>.h/.cpp
+              ├── <span class="type">config.h</span> <span class="cm">← Pin 16/17/18 relay</span>
+              ├── <span class="type">model.h</span> <span class="cm">← AI weights shared</span>
+              ├── <span class="type">shared_protocol.h</span>
+              └── <span class="type">wifi_config_portal.h</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 14: Frontend — Web Dashboard -->
+    <section class="slide" data-chapter="ch3">
+      <div class="anim"><span class="chapter-badge amber">CHƯƠNG 3 — WEB DASHBOARD</span></div>
+      <h2 class="anim">ReactJS Dashboard — GreenGuard AI</h2>
+      <div class="row" style="margin-top:16px;">
+        <div class="col anim">
+          <div class="card">
+            <h3>📐 Cấu trúc 6 trang + 15 components</h3>
+            <div class="code-block" style="font-size:12px;">smart-farm-dashboard/src/
+              ├── <span class="type">App.jsx</span> <span class="cm">← React Router + Sidebar</span>
+              ├── api/ <span class="cm">← Axios + JWT interceptor</span>
+              ├── context/ <span class="cm">← AuthContext (login/logout)</span>
+              ├── pages/
+              │ ├── <span class="fn">LoginPage</span> · <span class="fn">RegisterPage</span>
+              │ ├── <span class="fn">DevicesPage</span> · <span class="fn">DeviceDetailPage</span>
+              │ ├── <span class="fn">CreateDevicePage</span> · <span class="fn">SettingsPage</span>
+              └── components/
+              ├── <span class="fn">OverviewTab</span> <span class="cm">← SSE + Realtime cards</span>
+              ├── <span class="fn">ControlTab</span> <span class="cm">← Relay toggle + settings</span>
+              ├── <span class="fn">AnalyticsTab</span> <span class="cm">← Recharts history</span>
+              ├── <span class="fn">MetricChart</span> <span class="cm">← LineChart wrapper</span>
+              ├── <span class="fn">AutomationPanel</span> · <span class="fn">SchedulesPanel</span>
+              └── <span class="fn">PairingPanel</span> · <span class="fn">DeviceSettingsPanel</span></div>
+          </div>
+        </div>
+        <div class="col anim">
+          <div class="card">
+            <h3>⚡ Tính năng nổi bật</h3>
+            <ul>
+              <li><span class="highlight">SSE EventSource</span> — cập nhật telemetry real-time không cần polling</li>
+              <li><span class="highlight">Recharts</span> — biểu đồ đường temperature, humidity, soil, lux</li>
+              <li><span class="highlight">Sidebar navigation</span> — Tổng quan, Điều khiển, Phân tích, Trợ lý AI</li>
+              <li><span class="highlight">Dark theme</span> — Emerald Green palette (#10B981)</li>
+              <li><span class="highlight">Device pairing</span> — Ghép cặp WROOM ↔ S3 trực quan</li>
+              <li><span class="highlight">Automation config</span> — Ngưỡng, Hysteresis, Safety Windows</li>
+            </ul>
+          </div>
+          <div class="card" style="margin-top:14px;">
+            <h3>🛠️ Công nghệ</h3>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">
+              <span class="arch-chip"
+                style="background:var(--blue-dim);color:var(--blue);border:1px solid rgba(59,130,246,.3);">React
+                18.2</span>
+              <span class="arch-chip"
+                style="background:var(--purple-dim);color:var(--purple);border:1px solid rgba(139,92,246,.3);">Vite
+                5.4</span>
+              <span class="arch-chip"
+                style="background:var(--green-dim);color:var(--green);border:1px solid rgba(16,185,129,.3);">Recharts
+                2.12</span>
+              <span class="arch-chip"
+                style="background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,158,11,.3);">Axios</span>
+              <span class="arch-chip"
+                style="background:var(--cyan-dim);color:var(--cyan);border:1px solid rgba(6,182,212,.3);">React Router
+                6</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 15: Mobile App — Flutter -->
+    <section class="slide" data-chapter="ch3">
+      <div class="anim"><span class="chapter-badge amber">CHƯƠNG 3 — MOBILE APP</span></div>
+      <h2 class="anim">Ứng dụng Flutter — Smart Farm Mobile</h2>
+      <div class="row" style="margin-top:16px;">
+        <div class="col anim">
+          <div class="card">
+            <h3>📱 15 màn hình chính</h3>
+            <div class="stat-grid" style="grid-template-columns:1fr 1fr;">
+              <div class="stat-box">
+                <div style="font-size:20px;">🏠</div>
+                <div class="stat-label">Home Overview</div>
+              </div>
+              <div class="stat-box">
+                <div style="font-size:20px;">📟</div>
+                <div class="stat-label">Devices</div>
+              </div>
+              <div class="stat-box">
+                <div style="font-size:20px;">📊</div>
+                <div class="stat-label">Device Detail</div>
+              </div>
+              <div class="stat-box">
+                <div style="font-size:20px;">⏰</div>
+                <div class="stat-label">Schedules</div>
+              </div>
+              <div class="stat-box">
+                <div style="font-size:20px;">🚨</div>
+                <div class="stat-label">Alerts</div>
+              </div>
+              <div class="stat-box">
+                <div style="font-size:20px;">🔐</div>
+                <div class="stat-label">Login / Register</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col anim">
+          <div class="card">
+            <h3>🎨 Thiết kế & Kiến trúc</h3>
+            <ul>
+              <li><span class="highlight">Material 3</span> — Dark theme, Emerald Green (#10B981)</li>
+              <li><span class="highlight">Provider</span> — State management pattern</li>
+              <li><span class="highlight">SharedPreferences</span> — Lưu JWT token cục bộ</li>
+              <li><span class="highlight">Flutter Local Notifications</span> — Push cảnh báo bất thường</li>
+              <li><span class="highlight">Bottom Navigation</span> — 4 tabs: Trang chủ, Vận hành, Báo cáo, Trợ lý AI
+              </li>
+            </ul>
+          </div>
+          <div class="card" style="margin-top:14px;">
+            <h3>📡 API Client (api.dart — 37 methods)</h3>
+            <div class="code-block" style="font-size:12px;">lib/services/<span class="type">api.dart</span>
+              ├── Auth: login, register, refreshToken
+              ├── Devices: getAll, getById, create, update, delete
+              ├── Sensors: getByDevice, getLatest
+              ├── Commands: send (fan/light/pump ON/OFF)
+              ├── Schedules: CRUD operations
+              ├── Alerts: getByDevice, markAsRead
+              └── AlertRules: CRUD + toggleEnabled</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 16: Testing -->
+    <section class="slide" data-chapter="ch3">
+      <div class="anim"><span class="chapter-badge amber">CHƯƠNG 3 — KIỂM THỬ</span></div>
+      <h2 class="anim">Kịch bản kiểm thử & Đánh giá kết quả</h2>
+      <div class="row" style="margin-top:16px;">
+        <div class="col-2 anim">
+          <div class="card">
+            <h3>🧪 Kịch bản kiểm thử tiêu biểu</h3>
+            <table style="font-size:13px;">
+              <tr>
+                <th>TC</th>
+                <th>Kịch bản</th>
+                <th>Kết quả mong đợi</th>
+                <th>Status</th>
+              </tr>
+              <tr>
+                <td>01</td>
+                <td>Đăng ký / Đăng nhập</td>
+                <td>JWT token trả về → truy cập API</td>
+                <td style="color:var(--green);">✅ PASS</td>
+              </tr>
+              <tr>
+                <td>04</td>
+                <td>WROOM gửi telemetry MQTT</td>
+                <td>MongoDB lưu + SSE push → Web hiển thị</td>
+                <td style="color:var(--green);">✅ PASS</td>
+              </tr>
+              <tr>
+                <td>05</td>
+                <td>Mất WiFi → Fallback TCP</td>
+                <td>WROOM phát SoftAP, S3 kết nối TCP:8080</td>
+                <td style="color:var(--green);">✅ PASS</td>
+              </tr>
+              <tr>
+                <td>07</td>
+                <td>Bật quạt từ Web Dashboard</td>
+                <td>MQTT publish → S3 relay ON → UI update</td>
+                <td style="color:var(--green);">✅ PASS</td>
+              </tr>
+              <tr>
+                <td>09</td>
+                <td>AI bật bơm khi đất khô (20%)</td>
+                <td>Model output ≥ 0.60 → pump ON</td>
+                <td style="color:var(--green);">✅ PASS</td>
+              </tr>
+              <tr>
+                <td>12</td>
+                <td>Safety Window chặn bơm ngoài giờ</td>
+                <td>AI muốn ON nhưng Server forced OFF</td>
+                <td style="color:var(--green);">✅ PASS</td>
+              </tr>
+              <tr>
+                <td>13</td>
+                <td>Nhiệt độ vượt ngưỡng cảnh báo</td>
+                <td>Alert created + email gửi thành công</td>
+                <td style="color:var(--green);">✅ PASS</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+        <div class="col anim">
+          <div class="card">
+            <h3>📈 Đánh giá mô hình TinyML</h3>
+            <div class="stat-grid" style="grid-template-columns:1fr;">
+              <div class="stat-box" style="text-align:left;padding:14px 18px;">
+                <table style="font-size:13px;">
+                  <tr>
+                    <td>Exact Match Accuracy</td>
+                    <td style="color:var(--green);font-weight:700;">~95%+</td>
+                  </tr>
+                  <tr>
+                    <td>Fan Accuracy</td>
+                    <td style="color:var(--green);font-weight:700;">~97%</td>
+                  </tr>
+                  <tr>
+                    <td>Light Accuracy</td>
+                    <td style="color:var(--green);font-weight:700;">~96%</td>
+                  </tr>
+                  <tr>
+                    <td>Pump Accuracy</td>
+                    <td style="color:var(--green);font-weight:700;">~97%</td>
+                  </tr>
+                  <tr>
+                    <td>Model Size (INT8)</td>
+                    <td style="color:var(--cyan);font-weight:700;">2.4 KB</td>
+                  </tr>
+                  <tr>
+                    <td>Inference Latency</td>
+                    <td style="color:var(--cyan);font-weight:700;">~1 ms</td>
+                  </tr>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 17: System Metrics -->
+    <section class="slide" data-chapter="ch3">
+      <div class="anim"><span class="chapter-badge amber">CHƯƠNG 3 — CHỈ SỐ HIỆU NĂNG</span></div>
+      <h2 class="anim">Đánh giá hiệu năng hệ thống</h2>
+      <div class="stat-grid anim" style="grid-template-columns: repeat(4, 1fr); margin-top:24px;">
+        <div class="stat-box">
+          <div class="stat-value">~1 ms</div>
+          <div class="stat-label">TinyML Inference</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Suy luận trên ESP32</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-value">&lt;2s</div>
+          <div class="stat-label">End-to-End Latency</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Sensor → Web hiển thị</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-value">5s</div>
+          <div class="stat-label">Chu kỳ đọc sensor</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">TINYML_INFERENCE_INTERVAL</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-value">10s</div>
+          <div class="stat-label">Chu kỳ MQTT</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">MQTT_PUBLISH_INTERVAL</div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:24px;">
+        <div class="col anim">
+          <div class="card">
+            <h3>🔄 Độ ổn định kết nối</h3>
+            <table>
+              <tr>
+                <td>Phát hiện mất WiFi</td>
+                <td style="font-weight:700;">~15 giây</td>
+              </tr>
+              <tr>
+                <td>Chuyển đổi → Fallback TCP</td>
+                <td style="font-weight:700;">~3–5 giây</td>
+              </tr>
+              <tr>
+                <td>Khôi phục khi WiFi trở lại</td>
+                <td style="font-weight:700;">~10–15 giây</td>
+              </tr>
+              <tr>
+                <td>MQTT Reconnect Period</td>
+                <td style="font-weight:700;">2 giây (auto)</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+        <div class="col anim">
+          <div class="card">
+            <h3>💾 Tài nguyên phần cứng</h3>
+            <table>
+              <tr>
+                <td>Model TFLite (Flash)</td>
+                <td style="color:var(--green);font-weight:700;">2.4 KB / 4MB</td>
+              </tr>
+              <tr>
+                <td>Tensor Arena (RAM)</td>
+                <td style="color:var(--green);font-weight:700;">8 KB / 520KB</td>
+              </tr>
+              <tr>
+                <td>Free Heap sau init</td>
+                <td style="font-weight:700;">~200 KB</td>
+              </tr>
+              <tr>
+                <td>OLED Refresh Rate</td>
+                <td style="font-weight:700;">1 FPS (1000ms)</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 18: Conclusion — Pros & Cons -->
+    <section class="slide" data-chapter="ch4">
+      <div class="anim"><span class="chapter-badge cyan">CHƯƠNG 4 — KẾT LUẬN</span></div>
+      <h2 class="anim">Đánh giá ưu / nhược điểm</h2>
+      <div class="row" style="margin-top:16px;">
+        <div class="col anim">
+          <div class="card" style="border-left: 3px solid var(--green);">
+            <h3 style="color:var(--green);">✅ Ưu điểm</h3>
+            <ul>
+              <li><strong>Edge AI:</strong> Quyết định tưới tiêu ngay trên ESP32, không cần Internet</li>
+              <li><strong>Kiến trúc 2 node:</strong> Tách cảm biến & điều khiển — dễ bảo trì</li>
+              <li><strong>Đa chế độ:</strong> Manual / Auto / Scheduled — linh hoạt</li>
+              <li><strong>Safety Windows:</strong> Bảo vệ chống tưới ngoài giờ</li>
+              <li><strong>Hysteresis:</strong> Chống flapping ở vùng biên ngưỡng</li>
+              <li><strong>Fallback TCP:</strong> Hoạt động offline khi mất WiFi</li>
+              <li><strong>Full-stack:</strong> Hardware + Backend + Web + Mobile</li>
+              <li><strong>Real-time:</strong> SSE push, MQTT QoS 1</li>
+            </ul>
+          </div>
+        </div>
+        <div class="col anim">
+          <div class="card" style="border-left: 3px solid var(--amber);">
+            <h3 style="color:var(--amber);">⚠️ Nhược điểm & Hạn chế</h3>
+            <ul>
+              <li>Dữ liệu huấn luyện <strong>synthetic</strong> — chưa phản ánh hoàn toàn thực tế</li>
+              <li>Mô hình AI đơn giản (2 lớp) — chưa xử lý bài toán phức tạp</li>
+              <li>Chưa có <strong>OTA</strong> update firmware từ xa</li>
+              <li>MQTT chưa dùng <strong>TLS/SSL</strong> encryption</li>
+              <li>Chưa tích hợp <strong>camera</strong> giám sát hình ảnh</li>
+              <li>Chưa có <strong>Unit Test</strong> tự động cho Backend/Frontend</li>
+              <li>Prototype breadboard — chưa thiết kế PCB</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 19: Future Work -->
+    <section class="slide" data-chapter="ch4">
+      <div class="anim"><span class="chapter-badge cyan">CHƯƠNG 4 — HƯỚNG PHÁT TRIỂN</span></div>
+      <h2 class="anim">Định hướng phát triển tương lai</h2>
+      <div class="row" style="margin-top:16px;">
+        <div class="col anim">
+          <div class="card" style="border-top:3px solid var(--green);">
+            <div class="card-icon" style="background:var(--green-dim);">🧠</div>
+            <h3>Nâng cao TinyML</h3>
+            <ul>
+              <li>Thu thập dữ liệu thực tế tại trang trại</li>
+              <li>Transfer Learning & On-device Learning</li>
+              <li>LSTM/GRU dự báo chuỗi thời gian</li>
+              <li>Thêm đầu vào: thời tiết API, giai đoạn cây</li>
+            </ul>
+          </div>
+        </div>
+        <div class="col anim">
+          <div class="card" style="border-top:3px solid var(--blue);">
+            <div class="card-icon" style="background:var(--blue-dim);">🔌</div>
+            <h3>Cải thiện phần cứng</h3>
+            <ul>
+              <li>Năng lượng mặt trời (Solar Panel)</li>
+              <li>ESP32-CAM — Computer Vision phát hiện sâu bệnh</li>
+              <li>LoRa/LoRaWAN cho khoảng cách xa</li>
+              <li>Thiết kế PCB chuyên dụng</li>
+            </ul>
+          </div>
+        </div>
+        <div class="col anim">
+          <div class="card" style="border-top:3px solid var(--purple);">
+            <div class="card-icon" style="background:var(--purple-dim);">☁️</div>
+            <h3>Nâng cấp phần mềm</h3>
+            <ul>
+              <li>OTA Firmware Update qua MQTT</li>
+              <li>TLS/SSL cho MQTT + HTTPS API</li>
+              <li>Docker + CI/CD pipeline</li>
+              <li>Prometheus/Grafana monitoring</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="anim" style="margin-top:20px;">
+        <div class="card" style="border:1px solid rgba(6,182,212,.3); background:rgba(6,182,212,.04);">
+          <h3 style="color:var(--cyan);">🌍 Mở rộng quy mô</h3>
+          <div class="row" style="gap:16px;">
+            <div class="col">
+              <ul>
+                <li>Multi-farm, multi-zone quản lý nhiều vùng canh tác</li>
+                <li>Tích hợp API thời tiết OpenWeatherMap</li>
+              </ul>
+            </div>
+            <div class="col">
+              <ul>
+                <li>Data Analytics với Machine Learning trên Server</li>
+                <li>Marketplace chia sẻ mô hình AI giữa nông dân</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 20: Thank You -->
+    <section class="slide title-slide" data-chapter="end">
+      <div class="anim title-school">BÁO CÁO ĐỒ ÁN TỐT NGHIỆP</div>
+      <div class="anim title-divider"></div>
+      <h1 class="anim" style="font-size:52px;">Cảm ơn Quý Thầy Cô<br>& Hội đồng!</h1>
+      <p class="anim subtitle" style="max-width:600px;">Hệ thống giám sát & quản lý tưới tiêu cho cây trồng<br>ứng dụng
+        IoT và TinyML</p>
+      <div class="anim" style="margin-top:30px;">
+        <div style="display:inline-flex; gap:16px; flex-wrap:wrap; justify-content:center;">
+          <span class="arch-chip"
+            style="background:var(--green-dim);color:var(--green);border:1px solid rgba(16,185,129,.3);padding:10px 20px;font-size:14px;">🔌
+            ESP32 × 2 Nodes</span>
+          <span class="arch-chip"
+            style="background:var(--blue-dim);color:var(--blue);border:1px solid rgba(59,130,246,.3);padding:10px 20px;font-size:14px;">🧠
+            TinyML 2.4KB</span>
+          <span class="arch-chip"
+            style="background:var(--purple-dim);color:var(--purple);border:1px solid rgba(139,92,246,.3);padding:10px 20px;font-size:14px;">☁️
+            Node.js + MongoDB</span>
+          <span class="arch-chip"
+            style="background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,158,11,.3);padding:10px 20px;font-size:14px;">🖥️
+            ReactJS + Flutter</span>
+        </div>
+      </div>
+      <div class="anim" style="margin-top:40px;">
+        <p style="font-size:15px; color:var(--text-muted);">Nhóm 22_26_ST22B &nbsp;·&nbsp; Dương — Na — Thanh</p>
+        <p style="font-size:13px; color:var(--text-muted); margin-top:8px;">Nhấn ← → hoặc click nút điều hướng để chuyển
+          slide</p>
+      </div>
+    </section>
+
+  </div><!-- /deck -->
+
+  <!-- ═══════════════════════════════════
+     SLIDE ENGINE JS
+     ═══════════════════════════════════ -->
+  <script>
+    const slides = document.querySelectorAll('.slide');
+    let current = 0;
+    const total = slides.length;
+
+    function showSlide(n) {
+      slides.forEach((s, i) => {
+        s.classList.remove('active', 'prev');
+        if (i === n) s.classList.add('active');
+        else if (i < n) s.classList.add('prev');
+      });
+      current = n;
+
+      // Progress bar
+      document.getElementById('progressBar').style.width = ((n + 1) / total * 100) + '%';
+
+      // Counter
+      document.getElementById('slideCounter').textContent = `${n + 1} / ${total}`;
+
+      // TOC dots
+      document.querySelectorAll('.toc-dot').forEach((d, i) => {
+        d.classList.toggle('active', i === n);
+      });
+    }
+
+    function nextSlide() { if (current < total - 1) showSlide(current + 1); }
+    function prevSlide() { if (current > 0) showSlide(current - 1); }
+
+    // Keyboard nav
+    document.addEventListener('keydown', e => {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); nextSlide(); }
+      if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prevSlide(); }
+      if (e.key === 'Home') { e.preventDefault(); showSlide(0); }
+      if (e.key === 'End') { e.preventDefault(); showSlide(total - 1); }
+    });
+
+    // Touch swipe support
+    let touchStartX = 0;
+    document.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; });
+    document.addEventListener('touchend', e => {
+      const diff = touchStartX - e.changedTouches[0].screenX;
+      if (Math.abs(diff) > 60) {
+        if (diff > 0) nextSlide();
+        else prevSlide();
+      }
+    });
+
+    // Build TOC dots
+    const toc = document.getElementById('miniToc');
+    for (let i = 0; i < total; i++) {
+      const dot = document.createElement('div');
+      dot.className = 'toc-dot';
+      dot.onclick = () => showSlide(i);
+      toc.appendChild(dot);
+    }
+
+    // Init
+    showSlide(0);
+  </script>
+</body>
+
+</html>

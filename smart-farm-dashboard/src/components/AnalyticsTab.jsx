@@ -9,40 +9,136 @@ export default function AnalyticsTab({
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* AI Strategic Report */}
-      <div className="card" style={{ padding: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
-        <div>
-          <h3 style={{ fontSize: 16, fontWeight: 800, color: '#fff', marginBottom: 4 }}>
-            AI Strategic Report
-          </h3>
-          <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
-            Phân tích dữ liệu lịch sử và đưa ra chiến lược tưới lâu dài
-          </p>
-          {aiReportText && (
-            <div style={{
-              marginTop: 12,
-              padding: 12,
-              background: 'rgba(16,185,129,0.05)',
-              border: '1px solid rgba(16,185,129,0.15)',
-              borderRadius: 8,
-              fontSize: 13,
-              color: '#81c784',
-              lineHeight: 1.5,
-              maxWidth: 700,
-              animation: 'dropdownFadeIn 0.3s ease both'
-            }}>
-              🤖 {aiReportText}
-            </div>
-          )}
+      <div className="card" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
+          <div>
+            <h3 style={{ fontSize: 16, fontWeight: 800, color: '#fff', marginBottom: 4 }}>
+              AI Strategic Report
+            </h3>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
+              Phân tích dữ liệu lịch sử và đưa ra chiến lược tưới lâu dài
+            </p>
+          </div>
+          <button
+            className="btn btn-primary"
+            onClick={generateReport}
+            disabled={generatingReport}
+            style={{ borderRadius: 20, padding: '10px 24px', fontSize: 12 }}
+          >
+            {generatingReport ? 'GENERATING...' : 'GENERATE AI SUMMARY'}
+          </button>
         </div>
-        <button
-          className="btn btn-primary"
-          onClick={generateReport}
-          disabled={generatingReport}
-          style={{ borderRadius: 20, padding: '10px 24px', fontSize: 12 }}
-        >
-          {generatingReport ? 'GENERATING...' : 'GENERATE AI SUMMARY'}
-        </button>
+
+        {aiReportText && (
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+            animation: 'dropdownFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both',
+            width: '100%'
+          }}>
+            <div style={{
+              padding: '12px 16px',
+              background: 'rgba(16,185,129,0.08)',
+              borderLeft: '4px solid #10b981',
+              borderRadius: '0 8px 8px 0',
+              fontSize: 13,
+              color: '#e2e8f0',
+              lineHeight: 1.6
+            }}>
+              🤖 <strong>Bản tin phân tích TinyML:</strong> {aiReportText.summary}
+            </div>
+
+            {/* Recommendation Cards Grid */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+              gap: 16,
+              marginTop: 4
+            }}>
+              {/* Soil Recommendation */}
+              <div style={{
+                padding: 16,
+                background: 'rgba(255, 255, 255, 0.02)',
+                border: '1px solid rgba(255, 255, 255, 0.05)',
+                borderRadius: 12,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-dim)' }}>💧 Độ ẩm đất</span>
+                  <span style={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    padding: '2px 8px',
+                    borderRadius: 12,
+                    background: `${aiReportText.soilColor}15`,
+                    color: aiReportText.soilColor,
+                    border: `1px solid ${aiReportText.soilColor}30`
+                  }}>{aiReportText.avgSoil}% ({aiReportText.soilStatus})</span>
+                </div>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
+                  {aiReportText.soilRec}
+                </p>
+              </div>
+
+              {/* Temp Recommendation */}
+              <div style={{
+                padding: 16,
+                background: 'rgba(255, 255, 255, 0.02)',
+                border: '1px solid rgba(255, 255, 255, 0.05)',
+                borderRadius: 12,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-dim)' }}>🌡️ Nhiệt độ</span>
+                  <span style={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    padding: '2px 8px',
+                    borderRadius: 12,
+                    background: `${aiReportText.tempColor}15`,
+                    color: aiReportText.tempColor,
+                    border: `1px solid ${aiReportText.tempColor}30`
+                  }}>{aiReportText.avgTemp}°C ({aiReportText.tempStatus})</span>
+                </div>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
+                  {aiReportText.tempRec}
+                </p>
+              </div>
+
+              {/* Light Recommendation */}
+              <div style={{
+                padding: 16,
+                background: 'rgba(255, 255, 255, 0.02)',
+                border: '1px solid rgba(255, 255, 255, 0.05)',
+                borderRadius: 12,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-dim)' }}>☀️ Ánh sáng</span>
+                  <span style={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    padding: '2px 8px',
+                    borderRadius: 12,
+                    background: `${aiReportText.luxColor}15`,
+                    color: aiReportText.luxColor,
+                    border: `1px solid ${aiReportText.luxColor}30`
+                  }}>{aiReportText.avgLux} lx ({aiReportText.luxStatus})</span>
+                </div>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
+                  {aiReportText.luxRec}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Grid: Charts */}

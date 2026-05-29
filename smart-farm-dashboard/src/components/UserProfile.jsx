@@ -53,7 +53,7 @@ export default function UserProfile({ user, logout }) {
           flexDirection: 'column',
           gap: 4
         }}>
-          <Link to="/devices" style={{
+          <Link to="/presentation" style={{
             display: 'flex',
             alignItems: 'center',
             gap: 8,
@@ -63,7 +63,7 @@ export default function UserProfile({ user, logout }) {
             color: 'var(--text-dim)',
             transition: 'background 0.2s',
           }} className="profile-menu-item">
-            <span>🖥️</span> Trang thiết bị
+            <span>📽️</span> Bài thuyết trình
           </Link>
           <Link to="/settings" style={{
             display: 'flex',

@@ -6,6 +6,7 @@ import DevicesPage from './pages/DevicesPage'
 import DeviceDetailPage from './pages/DeviceDetailPage'
 import CreateDevicePage from './pages/CreateDevicePage'
 import SettingsPage from './pages/SettingsPage'
+import PresentationPage from './pages/PresentationPage'
 import { useAuth } from './context/AuthContext'
 
 function Private({ children }) {
@@ -39,6 +40,10 @@ function NavLink({ to, children }) {
 export default function App() {
   const { isAuthed, logout, user } = useAuth()
   const location = useLocation()
+
+  if (location.pathname === '/presentation') {
+    return <PresentationPage />
+  }
 
   // Parse query params to highlight active sidebar link
   const searchParams = new URLSearchParams(location.search)

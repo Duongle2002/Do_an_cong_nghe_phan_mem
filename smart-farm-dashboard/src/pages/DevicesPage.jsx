@@ -47,7 +47,7 @@ export default function DevicesPage() {
   const [modeChanging, setModeChanging] = useState(false)
   const [overrideNotice, setOverrideNotice] = useState('')
   const [generatingReport, setGeneratingReport] = useState(false)
-  const [aiReportText, setAiReportText] = useState('')
+  const [aiReportText, setAiReportText] = useState(null)
   const [schedules, setSchedules] = useState([])
 
   const sseRef = useRef(null)
@@ -529,10 +529,96 @@ export default function DevicesPage() {
 
   const generateReport = () => {
     setGeneratingReport(true)
-    setAiReportText('')
+    setAiReportText(null)
     setTimeout(() => {
       setGeneratingReport(false)
-      setAiReportText('Báo cáo phân tích: Độ ẩm đất duy trì trung bình ở mức 58%, nhiệt độ nhà kính ổn định ở mức 32.5°C. TinyML khuyến nghị duy trì chu kỳ tưới vào lúc 06:00 hàng ngày và tối ưu hóa hệ thống chiếu sáng từ 18:00 đến 22:00 để thúc đẩy sinh trưởng.')
+
+      let avgSoil = 58
+      let avgTemp = 32.5
+      let avgHum = 64
+      let avgLux = 6200
+
+      if (chartsData && chartsData.length > 0) {
+        const count = chartsData.length
+        const sumSoil = chartsData.reduce((sum, d) => sum + (d.soilMoisture ?? 0), 0)
+        const sumTemp = chartsData.reduce((sum, d) => sum + (d.temperature ?? 0), 0)
+        const sumHum = chartsData.reduce((sum, d) => sum + (d.humidity ?? 0), 0)
+        const sumLux = chartsData.reduce((sum, d) => sum + (d.lux ?? 0), 0)
+
+        avgSoil = Math.round(sumSoil / count)
+        avgTemp = Math.round((sumTemp / count) * 10) / 10
+        avgHum = Math.round(sumHum / count)
+        avgLux = Math.round(sumLux / count)
+      } else if (latest) {
+        avgSoil = latest.soilMoisture ?? avgSoil
+        avgTemp = latest.temperature ?? avgTemp
+        avgHum = latest.humidity ?? avgHum
+        avgLux = latest.lux ?? avgLux
+      }
+
+      let soilStatus = "Bình thường"
+      let soilRec = ""
+      let soilColor = "#81c784"
+      if (avgSoil < 50) {
+        soilStatus = "Khô hạn"
+        soilRec = "Độ ẩm đất thấp dưới ngưỡng sinh trưởng tốt. Khuyến nghị kích hoạt ngay máy bơm nước hoặc giữ chế độ TỰ ĐỘNG để hệ thống tự bù nước."
+        soilColor = "#ef5350"
+      } else if (avgSoil < 60) {
+        soilStatus = "Ổn định"
+        soilRec = "Độ ẩm ở mức vừa phải. Nên duy trì tưới nhẹ vào lúc 06:00 hàng ngày để giữ ẩm cho đất."
+        soilColor = "#81c784"
+      } else {
+        soilStatus = "Ẩm ướt"
+        soilRec = "Độ ẩm đất cao. Đề xuất giảm lưu lượng tưới hoặc giãn tần suất tưới để tránh úng rễ."
+        soilColor = "#29b6f6"
+      }
+
+      let tempStatus = "Lý tưởng"
+      let tempRec = ""
+      let tempColor = "#81c784"
+      if (avgTemp > 30) {
+        tempStatus = "Quá nóng"
+        tempRec = "Nhiệt độ trung bình vượt mức tối ưu cho cây trồng. Cần tăng cường quạt thông gió từ 11:00 đến 15:00."
+        tempColor = "#ffa726"
+      } else if (avgTemp < 20) {
+        tempStatus = "Khá lạnh"
+        tempRec = "Nhiệt độ hơi thấp. Hạn chế bật quạt thông gió để giữ nhiệt cho nhà kính."
+        tempColor = "#29b6f6"
+      } else {
+        tempStatus = "Lý tưởng"
+        tempRec = "Nhiệt độ nằm trong ngưỡng phát triển tốt nhất. Chỉ cần thông gió nhẹ đối lưu định kỳ."
+        tempColor = "#81c784"
+      }
+
+      let luxStatus = "Đầy đủ"
+      let luxRec = ""
+      let luxColor = "#81c784"
+      if (avgLux < 3000) {
+        luxStatus = "Thiếu sáng"
+        luxRec = "Cường độ sáng tự nhiên thấp. Khuyến nghị bù sáng bằng hệ thống đèn từ 18:00 đến 21:00."
+        luxColor = "#ffa726"
+      } else {
+        luxStatus = "Tốt"
+        luxRec = "Ánh sáng tự nhiên đạt hiệu suất tốt. Không cần sử dụng đèn trợ sáng trong thời điểm này."
+        luxColor = "#81c784"
+      }
+
+      setAiReportText({
+        avgSoil,
+        avgTemp,
+        avgHum,
+        avgLux,
+        soilStatus,
+        soilRec,
+        soilColor,
+        tempStatus,
+        tempRec,
+        tempColor,
+        luxStatus,
+        luxRec,
+        luxColor,
+        summary: `Hệ thống TinyML phân tích dựa trên dữ liệu lịch sử của thiết bị: Nhiệt độ trung bình ${avgTemp}°C, độ ẩm đất ${avgSoil}%, độ ẩm không khí ${avgHum}%, cường độ ánh sáng ${avgLux} lux. Chiến lược vận hành tối ưu được đề xuất như sau:`
+      })
     }, 1500)
   }
 
