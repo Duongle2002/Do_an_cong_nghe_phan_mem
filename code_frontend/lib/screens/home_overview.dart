@@ -103,6 +103,7 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> {
             final relayFan = evt['relayFan'];
             final relayLight = evt['relayLight'];
             final relayPump = evt['relayPump'];
+            final opModeVal = evt['opMode'];
             bool changed = false;
             if (relayFan is String) {
               bool v = relayFan.toUpperCase() == 'ON';
@@ -122,6 +123,12 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> {
               bool v = relayPump.toUpperCase() == 'ON';
               if (_pumpState[device.id] != v) {
                 _pumpState[device.id] = v;
+                changed = true;
+              }
+            }
+            if (opModeVal is String && _devices.isNotEmpty && device.id == _devices.first.id) {
+              if (_opMode != opModeVal) {
+                _opMode = opModeVal;
                 changed = true;
               }
             }
@@ -188,7 +195,9 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> {
           _schedules = list;
         } catch (_) {}
 
-        if (d.autoFanEnabled || d.autoPumpEnabled || d.autoLightEnabled) {
+        if (d.opMode != null) {
+          _opMode = d.opMode!;
+        } else if (d.autoFanEnabled || d.autoPumpEnabled || d.autoLightEnabled) {
           _opMode = 'auto';
         } else {
           final prefs = await SharedPreferences.getInstance();
@@ -676,7 +685,7 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> {
   }
 
   Widget _buildDeviceRow(Device d, String target, String title, String subtitle, IconData icon, bool isOn) {
-    final isAutoOrScheduled = d.autoFanEnabled || d.autoPumpEnabled || d.autoLightEnabled;
+    final isLocked = d.opMode == 'auto' || d.opMode == 'scheduled';
     final pendingKey = '${target}_${d.id}';
     final isPending = _pendingStates[pendingKey] ?? false;
 
@@ -721,7 +730,7 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> {
               ],
             ),
           ),
-          if (isAutoOrScheduled)
+          if (isLocked)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
@@ -731,12 +740,12 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> {
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
-                children: const [
-                  Icon(Icons.lock_outline, color: Color(0xFFD97706), size: 12),
-                  SizedBox(width: 4),
+                children: [
+                  const Icon(Icons.lock_outline, color: Color(0xFFD97706), size: 12),
+                  const SizedBox(width: 4),
                   Text(
-                    'KHÓA (AI)',
-                    style: TextStyle(
+                    d.opMode == 'scheduled' ? 'HẸN GIỜ' : 'KHÓA (AI)',
+                    style: const TextStyle(
                       color: Color(0xFFD97706),
                       fontSize: 10,
                       fontWeight: FontWeight.bold,

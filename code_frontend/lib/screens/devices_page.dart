@@ -60,7 +60,9 @@ class _DevicesPageState extends State<DevicesPage> {
         final activeDevice = _devices.first;
 
         // Load mode from device settings & local preference
-        if (activeDevice.autoFanEnabled || activeDevice.autoPumpEnabled || activeDevice.autoLightEnabled) {
+        if (activeDevice.opMode != null) {
+          _opMode = activeDevice.opMode!;
+        } else if (activeDevice.autoFanEnabled || activeDevice.autoPumpEnabled || activeDevice.autoLightEnabled) {
           _opMode = 'auto';
         } else {
           final prefs = await SharedPreferences.getInstance();
@@ -100,6 +102,7 @@ class _DevicesPageState extends State<DevicesPage> {
         final relayFan = evt['relayFan'];
         final relayLight = evt['relayLight'];
         final relayPump = evt['relayPump'];
+        final opModeVal = evt['opMode'];
         bool changed = false;
 
         if (relayFan is String) {
@@ -120,6 +123,12 @@ class _DevicesPageState extends State<DevicesPage> {
           bool v = relayPump.toUpperCase() == 'ON';
           if (_pumpState[device.id] != v) {
             _pumpState[device.id] = v;
+            changed = true;
+          }
+        }
+        if (opModeVal is String) {
+          if (_opMode != opModeVal) {
+            _opMode = opModeVal;
             changed = true;
           }
         }
@@ -158,6 +167,7 @@ class _DevicesPageState extends State<DevicesPage> {
     try {
       final isAuto = mode == 'auto';
       final payload = {
+        'opMode': mode,
         'autoFanEnabled': isAuto,
         'autoPumpEnabled': isAuto,
         'autoLightEnabled': isAuto,
