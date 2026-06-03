@@ -102,7 +102,6 @@ class _MainShellState extends State<MainShell> {
     return Scaffold(
       body: _pages[_index],
       bottomNavigationBar: Container(
-        height: 80,
         decoration: const BoxDecoration(
           color: Color(0xFF10141D),
           border: Border(

@@ -11,6 +11,7 @@ class Device {
   final String? lastFanState;
   final String? lastLightState;
   final String? lastPumpState;
+  final String? pairedSensorId;
 
   Device({
     required this.id,
@@ -25,6 +26,7 @@ class Device {
     this.lastFanState,
     this.lastLightState,
     this.lastPumpState,
+    this.pairedSensorId,
   });
 
   factory Device.fromJson(Map<String, dynamic> j) => Device(
@@ -40,6 +42,7 @@ class Device {
     lastFanState: j['lastFanState']?.toString(),
     lastLightState: j['lastLightState']?.toString(),
     lastPumpState: j['lastPumpState']?.toString(),
+    pairedSensorId: j['pairedSensorId']?.toString(),
   );
 
   Device copyWith({
@@ -55,6 +58,7 @@ class Device {
     String? lastFanState,
     String? lastLightState,
     String? lastPumpState,
+    String? pairedSensorId,
   }) => Device(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -68,5 +72,6 @@ class Device {
     lastFanState: lastFanState ?? this.lastFanState,
     lastLightState: lastLightState ?? this.lastLightState,
     lastPumpState: lastPumpState ?? this.lastPumpState,
+    pairedSensorId: pairedSensorId ?? this.pairedSensorId,
   );
 }

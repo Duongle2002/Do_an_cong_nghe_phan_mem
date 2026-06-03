@@ -16,6 +16,7 @@ class DevicesPage extends StatefulWidget {
 
 class _DevicesPageState extends State<DevicesPage> {
   List<Device> _devices = [];
+  String? _selectedDeviceId;
   bool _loading = true;
   String? _error;
   String _opMode = 'auto'; // 'manual' | 'auto' | 'scheduled'
@@ -57,7 +58,12 @@ class _DevicesPageState extends State<DevicesPage> {
       _devices = raw.map((e) => Device.fromJson(e as Map<String, dynamic>)).toList();
 
       if (_devices.isNotEmpty) {
-        final activeDevice = _devices.first;
+        final prefs = await SharedPreferences.getInstance();
+        _selectedDeviceId = prefs.getString('active_device_id') ?? _devices.first.id;
+        if (!_devices.any((d) => d.id == _selectedDeviceId)) {
+          _selectedDeviceId = _devices.first.id;
+        }
+        final activeDevice = _devices.firstWhere((d) => d.id == _selectedDeviceId, orElse: () => _devices.first);
 
         // Load mode from device settings & local preference
         if (activeDevice.opMode != null) {
@@ -65,28 +71,21 @@ class _DevicesPageState extends State<DevicesPage> {
         } else if (activeDevice.autoFanEnabled || activeDevice.autoPumpEnabled || activeDevice.autoLightEnabled) {
           _opMode = 'auto';
         } else {
-          final prefs = await SharedPreferences.getInstance();
           _opMode = prefs.getString('device_mode_${activeDevice.id}') ?? 'manual';
         }
 
-        // Fetch recent relay states
-        final cmds = await Api.listCommands(auth.accessToken ?? '', deviceId: activeDevice.id);
-        for (final c in cmds) {
-          if (c is Map<String, dynamic>) {
-            final target = c['target'] as String?;
-            final action = c['action'] as String?;
-            final isOn = action?.toUpperCase() == 'ON';
-            if (target == 'pump') _pumpState[activeDevice.id] = isOn;
-            if (target == 'fan') _fanState[activeDevice.id] = isOn;
-            if (target == 'light') _lightState[activeDevice.id] = isOn;
-          }
-        }
+        _pumpState[activeDevice.id] = activeDevice.lastPumpState?.toUpperCase() == 'ON';
+        _fanState[activeDevice.id] = activeDevice.lastFanState?.toUpperCase() == 'ON';
+        _lightState[activeDevice.id] = activeDevice.lastLightState?.toUpperCase() == 'ON';
 
         await _loadSchedules(activeDevice.id);
         _subscribeSse(activeDevice);
       }
     } catch (e) {
       _error = e.toString();
+      if (_error!.contains('Unauthorized') || _error!.contains('401')) {
+        Provider.of<AuthService>(context, listen: false).logout();
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -151,9 +150,14 @@ class _DevicesPageState extends State<DevicesPage> {
     }
   }
 
+  Device get _activeDevice => _devices.firstWhere(
+        (d) => d.id == _selectedDeviceId,
+        orElse: () => _devices.first,
+      );
+
   Future<void> _changeMode(String mode) async {
     if (_devices.isEmpty || _modeChanging) return;
-    final activeDevice = _devices.first;
+    final activeDevice = _activeDevice;
 
     // Save client preference
     final prefs = await SharedPreferences.getInstance();
@@ -213,7 +217,7 @@ class _DevicesPageState extends State<DevicesPage> {
 
   Future<void> _showScheduleEditor({Map<String, dynamic>? existing}) async {
     if (_devices.isEmpty) return;
-    final activeDevice = _devices.first;
+    final activeDevice = _activeDevice;
     final auth = Provider.of<AuthService>(context, listen: false);
 
     final result = await showDialog<Map<String, dynamic>>(
@@ -240,7 +244,7 @@ class _DevicesPageState extends State<DevicesPage> {
   }
 
   Future<void> _deleteSchedule(String id) async {
-    final activeDevice = _devices.first;
+    final activeDevice = _activeDevice;
     final auth = Provider.of<AuthService>(context, listen: false);
     final ok = await showDialog<bool>(
       context: context,
@@ -282,27 +286,52 @@ class _DevicesPageState extends State<DevicesPage> {
               ? Center(child: Text('Lỗi: $_error', style: const TextStyle(color: Colors.red)))
               : _devices.isEmpty
                   ? const Center(child: Text('Không tìm thấy thiết bị nào'))
-                  : _buildContent(),
+                  : RefreshIndicator(
+                      onRefresh: _loadAll,
+                      color: const Color(0xFF10B981),
+                      backgroundColor: const Color(0xFF161B26),
+                      child: _buildContent(),
+                    ),
     );
   }
 
   Widget _buildContent() {
-    final activeDevice = _devices.first;
+    final activeDevice = _devices.firstWhere((d) => d.id == _selectedDeviceId, orElse: () => _devices.first);
 
     return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
+      physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
       padding: const EdgeInsets.fromLTRB(20, 50, 20, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header
-          const Text(
-            'THIẾT LẬP CẤU HÌNH',
-            style: TextStyle(
-              color: Color(0xFF9EADBC),
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.2,
+          DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: _selectedDeviceId,
+              dropdownColor: const Color(0xFF161B26),
+              icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF10B981), size: 16),
+              style: const TextStyle(
+                color: Color(0xFF10B981),
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.2,
+              ),
+              items: _devices.map((d) {
+                return DropdownMenuItem<String>(
+                  value: d.id,
+                  child: Text(d.name.toUpperCase()),
+                );
+              }).toList(),
+              onChanged: (val) async {
+                if (val != null) {
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setString('active_device_id', val);
+                  setState(() {
+                    _selectedDeviceId = val;
+                  });
+                  _loadAll();
+                }
+              },
             ),
           ),
           const SizedBox(height: 4),
@@ -655,7 +684,7 @@ class _DevicesPageState extends State<DevicesPage> {
               try {
                 await Api.updateSchedule(auth.accessToken ?? '', s['_id'], body);
                 if (_devices.isNotEmpty) {
-                  _loadSchedules(_devices.first.id);
+                  _loadSchedules(_activeDevice.id);
                 }
               } catch (_) {}
             },

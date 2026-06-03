@@ -18,6 +18,7 @@ class HomeOverviewPage extends StatefulWidget {
 class _HomeOverviewPageState extends State<HomeOverviewPage> {
   bool _loading = true;
   List<Device> _devices = [];
+  String? _selectedDeviceId;
   final Map<String, SensorData?> _latest = {}; // deviceId -> latest reading
   String? _error;
   final Map<String, StreamSubscription> _sseSubs = {};
@@ -126,7 +127,7 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> {
                 changed = true;
               }
             }
-            if (opModeVal is String && _devices.isNotEmpty && device.id == _devices.first.id) {
+            if (opModeVal is String && _devices.isNotEmpty && device.id == _selectedDeviceId) {
               if (_opMode != opModeVal) {
                 _opMode = opModeVal;
                 changed = true;
@@ -169,18 +170,9 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> {
             _latest[d.id] = null;
           }
 
-          // Fetch recent relay commands
-          final cmds = await Api.listCommands(auth.accessToken ?? '', deviceId: d.id);
-          for (final c in cmds) {
-            if (c is Map<String, dynamic>) {
-              final target = c['target'] as String?;
-              final action = c['action'] as String?;
-              final isOn = action?.toUpperCase() == 'ON';
-              if (target == 'pump') _pumpState[d.id] = isOn;
-              if (target == 'fan') _fanState[d.id] = isOn;
-              if (target == 'light') _lightState[d.id] = isOn;
-            }
-          }
+          _pumpState[d.id] = d.lastPumpState?.toUpperCase() == 'ON';
+          _fanState[d.id] = d.lastFanState?.toUpperCase() == 'ON';
+          _lightState[d.id] = d.lastLightState?.toUpperCase() == 'ON';
         } catch (_) {
           _latest[d.id] = null;
         }
@@ -189,7 +181,12 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> {
       await Future.wait(futures);
 
       if (_devices.isNotEmpty) {
-        final d = _devices.first;
+        final prefs = await SharedPreferences.getInstance();
+        _selectedDeviceId = prefs.getString('active_device_id') ?? _devices.first.id;
+        if (!_devices.any((d) => d.id == _selectedDeviceId)) {
+          _selectedDeviceId = _devices.first.id;
+        }
+        final d = _devices.firstWhere((x) => x.id == _selectedDeviceId, orElse: () => _devices.first);
         try {
           final list = await Api.getSchedules(auth.accessToken ?? '', deviceId: d.id);
           _schedules = list;
@@ -200,7 +197,6 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> {
         } else if (d.autoFanEnabled || d.autoPumpEnabled || d.autoLightEnabled) {
           _opMode = 'auto';
         } else {
-          final prefs = await SharedPreferences.getInstance();
           _opMode = prefs.getString('device_mode_${d.id}') ?? 'manual';
         }
       }
@@ -210,6 +206,9 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> {
       }
     } catch (e) {
       _error = e.toString();
+      if (_error!.contains('Unauthorized') || _error!.contains('401')) {
+        Provider.of<AuthService>(context, listen: false).logout();
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -367,13 +366,28 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> {
               ? Center(child: Text('Đã xảy ra lỗi: $_error', style: const TextStyle(color: Colors.red)))
               : _devices.isEmpty
                   ? const Center(child: Text('Không tìm thấy thiết bị nào'))
-                  : _buildDashboard(userName, auth),
+                  : RefreshIndicator(
+                      onRefresh: _loadOverview,
+                      color: const Color(0xFF10B981),
+                      backgroundColor: const Color(0xFF161B26),
+                      child: _buildDashboard(userName, auth),
+                    ),
     );
   }
 
   Widget _buildDashboard(String userName, AuthService auth) {
-    final activeDevice = _devices.first;
-    final latestData = _latest[activeDevice.id];
+    final activeDevice = _devices.firstWhere((d) => d.id == _selectedDeviceId, orElse: () => _devices.first);
+    
+    SensorData? latestData = _latest[activeDevice.id];
+    if (latestData == null && activeDevice.pairedSensorId != null && activeDevice.pairedSensorId!.isNotEmpty) {
+      final pairedDevice = _devices.firstWhere(
+        (d) => d.externalId == activeDevice.pairedSensorId || d.id == activeDevice.pairedSensorId,
+        orElse: () => activeDevice
+      );
+      if (pairedDevice != activeDevice) {
+        latestData = _latest[pairedDevice.id];
+      }
+    }
 
     // Determine current operation mode
     String modeText = 'Tự động';
@@ -386,7 +400,7 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> {
     }
 
     return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
+      physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
       padding: const EdgeInsets.fromLTRB(20, 50, 20, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -398,13 +412,41 @@ class _HomeOverviewPageState extends State<HomeOverviewPage> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'NÔNG TRẠI THÔNG MINH',
-                    style: TextStyle(
-                      color: Color(0xFF9EADBC),
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.2,
+                  DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _selectedDeviceId,
+                      dropdownColor: const Color(0xFF161B26),
+                      icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF10B981), size: 16),
+                      style: const TextStyle(
+                        color: Color(0xFF10B981),
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                      ),
+                      items: _devices.map((d) {
+                        return DropdownMenuItem<String>(
+                          value: d.id,
+                          child: Text(d.name.toUpperCase()),
+                        );
+                      }).toList(),
+                      onChanged: (val) async {
+                        if (val != null) {
+                          final prefs = await SharedPreferences.getInstance();
+                          await prefs.setString('active_device_id', val);
+                          setState(() {
+                            _selectedDeviceId = val;
+                            final d = _devices.firstWhere((x) => x.id == val);
+                            if (d.opMode != null) {
+                              _opMode = d.opMode!;
+                            } else if (d.autoFanEnabled || d.autoPumpEnabled || d.autoLightEnabled) {
+                              _opMode = 'auto';
+                            } else {
+                              _opMode = 'manual';
+                            }
+                          });
+                          _loadOverview();
+                        }
+                      },
                     ),
                   ),
                   const SizedBox(height: 4),
