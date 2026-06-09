@@ -21,25 +21,25 @@
     }
 
     :root {
-      --bg: #0a0e17;
-      --bg-card: #111827;
-      --bg-card-alt: #161f30;
-      --border: #1e2d3d;
-      --green: #10b981;
-      --green-dim: rgba(16, 185, 129, .15);
-      --green-glow: rgba(16, 185, 129, .35);
-      --amber: #f59e0b;
-      --amber-dim: rgba(245, 158, 11, .15);
-      --blue: #3b82f6;
-      --blue-dim: rgba(59, 130, 246, .15);
-      --purple: #8b5cf6;
-      --purple-dim: rgba(139, 92, 246, .15);
-      --red: #ef4444;
-      --red-dim: rgba(239, 68, 68, .15);
-      --cyan: #06b6d4;
-      --cyan-dim: rgba(6, 182, 212, .15);
-      --text: #f1f5f9;
-      --text-dim: #94a3b8;
+      --bg: #f8fafc;
+      --bg-card: #ffffff;
+      --bg-card-alt: #f1f5f9;
+      --border: #e2e8f0;
+      --green: #059669;
+      --green-dim: rgba(5, 150, 105, 0.08);
+      --green-glow: rgba(5, 150, 105, 0.18);
+      --amber: #d97706;
+      --amber-dim: rgba(217, 119, 6, 0.08);
+      --blue: #2563eb;
+      --blue-dim: rgba(37, 99, 235, 0.08);
+      --purple: #7c3aed;
+      --purple-dim: rgba(124, 58, 237, 0.08);
+      --red: #dc2626;
+      --red-dim: rgba(220, 38, 38, 0.08);
+      --cyan: #0891b2;
+      --cyan-dim: rgba(8, 145, 178, 0.08);
+      --text: #0f172a;
+      --text-dim: #334155;
       --text-muted: #64748b;
       --radius: 16px;
       --font: 'Inter', -apple-system, sans-serif;
@@ -117,8 +117,8 @@
       content: '';
       position: fixed;
       inset: 0;
-      background-image: linear-gradient(rgba(255, 255, 255, .012) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255, 255, 255, .012) 1px, transparent 1px);
+      background-image: linear-gradient(rgba(15, 23, 42, .03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(15, 23, 42, .03) 1px, transparent 1px);
       background-size: 60px 60px;
       pointer-events: none;
       z-index: 0;
@@ -131,7 +131,7 @@
       position: absolute;
       top: 22px;
       right: 30px;
-      font-size: 12px;
+      font-size: 18px;
       color: var(--text-muted);
       font-family: var(--mono);
       letter-spacing: 1px;
@@ -143,7 +143,7 @@
       gap: 8px;
       padding: 6px 16px;
       border-radius: 100px;
-      font-size: 12px;
+      font-size: 18px;
       font-weight: 700;
       letter-spacing: 1.5px;
       text-transform: uppercase;
@@ -187,7 +187,7 @@
     }
 
     h1 {
-      font-size: 44px;
+      font-size: 51px;
       font-weight: 800;
       line-height: 1.15;
       letter-spacing: -1px;
@@ -195,14 +195,14 @@
     }
 
     h2 {
-      font-size: 32px;
+      font-size: 39px;
       font-weight: 700;
       line-height: 1.2;
       margin-bottom: 14px;
     }
 
     h3 {
-      font-size: 22px;
+      font-size: 28px;
       font-weight: 600;
       margin-bottom: 10px;
       color: var(--text);
@@ -210,13 +210,13 @@
 
     p,
     li {
-      font-size: 17px;
+      font-size: 23px;
       line-height: 1.7;
       color: var(--text-dim);
     }
 
     .subtitle {
-      font-size: 20px;
+      font-size: 26px;
       color: var(--text-dim);
       font-weight: 400;
       margin-bottom: 30px;
@@ -300,12 +300,12 @@
     }
 
     .card h3 {
-      font-size: 17px;
+      font-size: 23px;
       margin-bottom: 10px;
     }
 
     .card p {
-      font-size: 14px;
+      font-size: 20px;
     }
 
     .card-icon {
@@ -334,7 +334,7 @@
     }
 
     .stat-value {
-      font-size: 34px;
+      font-size: 41px;
       font-weight: 800;
       background: linear-gradient(135deg, var(--green), var(--cyan));
       -webkit-background-clip: text;
@@ -342,7 +342,7 @@
     }
 
     .stat-label {
-      font-size: 12px;
+      font-size: 18px;
       color: var(--text-muted);
       text-transform: uppercase;
       letter-spacing: 1px;
@@ -351,47 +351,47 @@
 
     /* Code block */
     .code-block {
-      background: #0d1117;
-      border: 1px solid #21262d;
+      background: #f6f8fa;
+      border: 1px solid var(--border);
       border-radius: 12px;
       padding: 18px 22px;
       font-family: var(--mono);
-      font-size: 13px;
+      font-size: 19px;
       line-height: 1.7;
-      color: #c9d1d9;
+      color: #24292f;
       overflow-x: auto;
       white-space: pre;
     }
 
     .code-block .kw {
-      color: #ff7b72;
+      color: #cf222e;
     }
 
     .code-block .fn {
-      color: #d2a8ff;
+      color: #8250df;
     }
 
     .code-block .str {
-      color: #a5d6ff;
+      color: #0a3069;
     }
 
     .code-block .cm {
-      color: #8b949e;
+      color: #6e7781;
     }
 
     .code-block .num {
-      color: #79c0ff;
+      color: #0550ae;
     }
 
     .code-block .type {
-      color: #ffa657;
+      color: #953800;
     }
 
     /* Table */
     table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 14px;
+      font-size: 20px;
     }
 
     th,
@@ -404,7 +404,7 @@
     th {
       color: var(--text-muted);
       font-weight: 600;
-      font-size: 12px;
+      font-size: 18px;
       text-transform: uppercase;
       letter-spacing: 1px;
       background: rgba(255, 255, 255, .02);
@@ -424,7 +424,7 @@
       align-items: center;
       gap: 8px;
       flex-wrap: wrap;
-      font-size: 13px;
+      font-size: 19px;
       font-weight: 600;
       margin: 16px 0;
     }
@@ -445,7 +445,7 @@
 
     .flow-arrow {
       color: var(--text-muted);
-      font-size: 18px;
+      font-size: 24px;
     }
 
     /* ═══════════════════════════════════════
@@ -459,15 +459,15 @@
     }
 
     .title-slide h1 {
-      font-size: 48px;
-      background: linear-gradient(135deg, #fff 0%, #10b981 50%, #06b6d4 100%);
+      font-size: 55px;
+      background: linear-gradient(135deg, var(--text) 0%, #10b981 50%, #06b6d4 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       margin-bottom: 20px;
     }
 
     .title-school {
-      font-size: 14px;
+      font-size: 20px;
       text-transform: uppercase;
       letter-spacing: 3px;
       color: var(--text-muted);
@@ -484,7 +484,7 @@
     }
 
     .title-meta {
-      font-size: 16px;
+      font-size: 22px;
       color: var(--text-dim);
       line-height: 2;
     }
@@ -544,7 +544,7 @@
       position: fixed;
       bottom: 30px;
       left: 30px;
-      font-size: 13px;
+      font-size: 19px;
       color: var(--text-muted);
       font-family: var(--mono);
       z-index: 100;
@@ -574,7 +574,7 @@
       min-width: 160px;
       padding: 14px 18px;
       font-weight: 700;
-      font-size: 13px;
+      font-size: 19px;
       display: flex;
       align-items: center;
       letter-spacing: .5px;
@@ -587,7 +587,7 @@
       gap: 12px;
       padding: 14px 20px;
       background: var(--bg-card);
-      font-size: 13px;
+      font-size: 19px;
       color: var(--text-dim);
       flex-wrap: wrap;
     }
@@ -595,7 +595,7 @@
     .arch-chip {
       padding: 5px 12px;
       border-radius: 8px;
-      font-size: 12px;
+      font-size: 18px;
       font-weight: 600;
       white-space: nowrap;
     }
@@ -768,9 +768,9 @@
       padding: 30px;
       margin-top: 20px;
       position: relative;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      box-shadow: 0 8px 32px rgba(15, 23, 42, 0.06);
     }
-
+    
     .diagram-headers {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -782,51 +782,32 @@
       position: relative;
       z-index: 2;
     }
-
+    
     .header-col {
       padding: 10px;
       border-radius: 8px;
       font-weight: 700;
-      font-size: 13px;
+      font-size: 19px;
       text-transform: uppercase;
       letter-spacing: 0.5px;
       background: rgba(255, 255, 255, 0.015);
       border: 1px solid rgba(255, 255, 255, 0.03);
     }
-
-    .header-col.wroom {
-      color: var(--green);
-      border-color: rgba(16, 185, 129, 0.2);
-      background: rgba(16, 185, 129, 0.03);
-    }
-
-    .header-col.mqtt {
-      color: var(--amber);
-      border-color: rgba(245, 158, 11, 0.2);
-      background: rgba(245, 158, 11, 0.03);
-    }
-
-    .header-col.server {
-      color: var(--purple);
-      border-color: rgba(139, 92, 246, 0.2);
-      background: rgba(139, 92, 246, 0.03);
-    }
-
-    .header-col.s3 {
-      color: var(--cyan);
-      border-color: rgba(6, 182, 212, 0.2);
-      background: rgba(6, 182, 212, 0.03);
-    }
-
+    
+    .header-col.wroom { color: var(--green); border-color: rgba(16, 185, 129, 0.2); background: rgba(16, 185, 129, 0.03); }
+    .header-col.mqtt { color: var(--amber); border-color: rgba(245, 158, 11, 0.2); background: rgba(245, 158, 11, 0.03); }
+    .header-col.server { color: var(--purple); border-color: rgba(139, 92, 246, 0.2); background: rgba(139, 92, 246, 0.03); }
+    .header-col.s3 { color: var(--cyan); border-color: rgba(6, 182, 212, 0.2); background: rgba(6, 182, 212, 0.03); }
+    
     .header-col small {
       display: block;
-      font-size: 10px;
+      font-size: 16px;
       color: var(--text-dim);
       font-weight: 500;
       text-transform: none;
       margin-top: 4px;
     }
-
+    
     .diagram-body {
       position: relative;
       display: flex;
@@ -834,7 +815,7 @@
       gap: 24px;
       padding-bottom: 20px;
     }
-
+    
     .diagram-body::before {
       content: '';
       position: absolute;
@@ -842,7 +823,7 @@
       bottom: 0;
       left: 0;
       right: 0;
-      background:
+      background: 
         linear-gradient(90deg, transparent calc(12.5% - 1px), var(--border) calc(12.5% - 1px), var(--border) calc(12.5% + 1px), transparent calc(12.5% + 1px)),
         linear-gradient(90deg, transparent calc(37.5% - 1px), var(--border) calc(37.5% - 1px), var(--border) calc(37.5% + 1px), transparent calc(37.5% + 1px)),
         linear-gradient(90deg, transparent calc(62.5% - 1px), var(--border) calc(62.5% - 1px), var(--border) calc(62.5% + 1px), transparent calc(62.5% + 1px)),
@@ -850,7 +831,7 @@
       pointer-events: none;
       z-index: 1;
     }
-
+    
     .diagram-row {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -858,52 +839,41 @@
       align-items: center;
       min-height: 48px;
     }
-
+    
     .diagram-card {
       background: var(--bg-card-alt);
       border: 1px solid var(--border);
       border-radius: 10px;
       padding: 10px 14px;
-      font-size: 11px;
+      font-size: 17px;
       z-index: 10;
       width: 85%;
       margin: 0 auto;
       text-align: center;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
       border-left: 3px solid var(--border);
     }
-
-    .diagram-card.col-1 {
-      grid-column: 1;
-      border-left-color: var(--green);
-    }
-
-    .diagram-card.col-3 {
-      grid-column: 3;
-      border-left-color: var(--purple);
-    }
-
-    .diagram-card.col-4 {
-      grid-column: 4;
-      border-left-color: var(--cyan);
-    }
-
+    
+    .diagram-card.col-1 { grid-column: 1; border-left-color: var(--green); }
+    .diagram-card.col-3 { grid-column: 3; border-left-color: var(--purple); }
+    .diagram-card.col-4 { grid-column: 4; border-left-color: var(--cyan); }
+    
     .diagram-card .card-title {
       display: block;
       font-weight: 700;
       color: var(--text);
       margin-bottom: 3px;
-      font-size: 12px;
+      font-size: 18px;
     }
-
+    
     .diagram-card .card-desc {
       display: block;
       color: var(--text-dim);
       font-family: var(--mono);
       line-height: 1.4;
-      font-size: 10px;
+      font-size: 16px;
     }
-
+    
     .msg-arrow {
       position: relative;
       grid-column-start: 1;
@@ -914,7 +884,7 @@
       height: 32px;
       z-index: 5;
     }
-
+    
     .msg-arrow::before {
       content: '';
       position: absolute;
@@ -923,124 +893,73 @@
       top: 50%;
       transform: translateY(-50%);
     }
-
+    
     .msg-arrow::after {
       content: '▶';
       position: absolute;
-      font-size: 8px;
+      font-size: 14px;
       top: 50%;
       transform: translateY(-50%);
     }
-
+    
     /* Arrow classes */
     .arrow-1-to-2::before {
       left: 12.5%;
       width: 25%;
       background: linear-gradient(90deg, var(--green), var(--amber));
     }
-
     .arrow-1-to-2::after {
       left: calc(37.5% - 5px);
       color: var(--amber);
     }
-
+    
     .arrow-2-to-3::before {
       left: 37.5%;
       width: 25%;
       background: linear-gradient(90deg, var(--amber), var(--purple));
     }
-
     .arrow-2-to-3::after {
       left: calc(62.5% - 5px);
       color: var(--purple);
     }
-
+    
     .arrow-3-to-2::before {
       left: 37.5%;
       width: 25%;
       background: linear-gradient(90deg, var(--amber), var(--purple));
     }
-
     .arrow-3-to-2::after {
       content: '◀';
       left: calc(37.5% - 3px);
       color: var(--amber);
     }
-
+    
     .arrow-2-to-4::before {
       left: 37.5%;
       width: 50%;
       background: linear-gradient(90deg, var(--amber), var(--cyan));
     }
-
     .arrow-2-to-4::after {
       left: calc(87.5% - 5px);
       color: var(--cyan);
     }
-
+    
     .msg-label {
-      background: #0f121a;
+      background: var(--bg-card);
       padding: 3px 8px;
       border-radius: 6px;
-      font-size: 10px;
+      font-size: 16px;
       font-family: var(--mono);
       color: var(--text);
       border: 1px solid var(--border);
       position: relative;
       z-index: 6;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-    }
-
-    /* Floating Back to Dashboard Button */
-    .back-dashboard-btn {
-      position: fixed;
-      top: 20px;
-      left: 30px;
-      z-index: 10000;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 18px;
-      background: rgba(16, 185, 129, 0.1);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      border-radius: 12px;
-      color: var(--green);
-      font-size: 14px;
-      font-weight: 600;
-      text-decoration: none;
-      transition: all 0.3s ease;
-      cursor: pointer;
-      backdrop-filter: blur(12px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-    }
-
-    .back-dashboard-btn:hover {
-      background: var(--green);
-      color: #0a0e17;
-      box-shadow: 0 0 15px var(--green-glow);
-      transform: translateY(-2px);
-    }
-
-    .back-dashboard-btn svg {
-      transition: transform 0.3s ease;
-    }
-
-    .back-dashboard-btn:hover svg {
-      transform: translateX(-3px);
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05);
     }
   </style>
 </head>
 
 <body>
-
-  <!-- Back to Dashboard Button -->
-  <a href="/devices" class="back-dashboard-btn">
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"
-      stroke-linecap="round" stroke-linejoin="round">
-      <line x1="19" y1="12" x2="5" y2="12"></line>
-      <polyline points="12 19 5 12 12 5"></polyline>
-    </svg>
-  </a>
 
   <!-- Progress Bar -->
   <div class="progress-bar" id="progressBar"></div>
@@ -1796,7 +1715,7 @@
           <div class="header-col server">☁️ Node.js Server<small>Backend Logic</small></div>
           <div class="header-col s3">🔵 ESP32-S3<small>Bộ điều khiển Relay</small></div>
         </div>
-
+        
         <!-- Body -->
         <div class="diagram-body">
           <!-- Step 1: Read sensors -->
@@ -1806,7 +1725,7 @@
               <span class="card-desc">SensorManager.read()<br>AHT20 + BH1750 + Soil</span>
             </div>
           </div>
-
+          
           <!-- Step 2: Normalize -->
           <div class="diagram-row">
             <div class="diagram-card col-1">
@@ -1814,29 +1733,29 @@
               <span class="card-desc">normalizeRange() -> [0, 1]</span>
             </div>
           </div>
-
+          
           <!-- Step 3: TinyML Micro Inference -->
           <div class="diagram-row">
             <div class="diagram-card col-1">
               <span class="card-title">3. Dự Đoán TinyML</span>
-              <span class="card-desc">MicroInterpreter.Invoke()<br>Hysteresis (ON>=0.60/OFF<=0.45)< /span>
+              <span class="card-desc">MicroInterpreter.Invoke()<br>Hysteresis (ON>=0.60/OFF<=0.45)</span>
             </div>
           </div>
-
+          
           <!-- Step 4: Publish AI state -->
           <div class="diagram-row">
             <div class="msg-arrow arrow-1-to-2">
               <span class="msg-label">Pub: farm/{id}/ai_state</span>
             </div>
           </div>
-
+          
           <!-- Step 5: Forward payload -->
           <div class="diagram-row">
             <div class="msg-arrow arrow-2-to-3">
               <span class="msg-label">Forward to Node.js</span>
             </div>
           </div>
-
+          
           <!-- Step 6: Server Process logic -->
           <div class="diagram-row">
             <div class="diagram-card col-3">
@@ -1844,21 +1763,21 @@
               <span class="card-desc">checkSafetyWindows()<br>filterByOpMode()</span>
             </div>
           </div>
-
+          
           <!-- Step 7: Server Publish control command -->
           <div class="diagram-row">
             <div class="msg-arrow arrow-3-to-2">
               <span class="msg-label">Pub: farm/{id}/state</span>
             </div>
           </div>
-
+          
           <!-- Step 8: Forward command to S3 Controller -->
           <div class="diagram-row">
             <div class="msg-arrow arrow-2-to-4">
               <span class="msg-label">Forward to ESP32-S3</span>
             </div>
           </div>
-
+          
           <!-- Step 9: Control Relay -->
           <div class="diagram-row">
             <div class="diagram-card col-4">
@@ -2322,10 +2241,317 @@
             </div>
           </div>
         </div>
+        </div>
       </div>
     </section>
 
-    <!-- SLIDE 20: Thank You -->
+    <!-- SLIDE 20: Q&A 1 - TinyML Output Activation -->
+    <section class="slide" data-chapter="qa-1">
+      <div class="anim"><span class="chapter-badge red">❓ PHẢN BIỆN HỘI ĐỒNG — CÂU 1</span></div>
+      <h2 class="anim">Hàm kích hoạt đầu ra của mô hình TinyML</h2>
+      <p class="anim subtitle">Tại sao dùng <strong>Sigmoid</strong> thay vì <strong>Softmax</strong> cho quạt, đèn, bơm?</p>
+      
+      <div class="row" style="margin-top:10px; flex: 1;">
+        <div class="col-2 anim">
+          <div class="card" style="border-left: 4px solid var(--green); height: 100%; display: flex; flex-direction: column; justify-content: center;">
+            <h3 style="color:var(--green); font-size: 20px; margin-bottom: 15px;">💡 Giải thích bản chất thuật toán</h3>
+            <p style="font-size: 16px; line-height: 1.8; margin-bottom: 12px;">
+              Hệ thống điều khiển nông nghiệp là bài toán <strong>Phân loại đa nhãn (Multi-label Classification)</strong>. Mỗi thiết bị (quạt, đèn, máy bơm) hoạt động hoàn toàn độc lập và có thể được kích hoạt đồng thời.
+            </p>
+            <p style="font-size: 16px; line-height: 1.8;">
+              Hàm <strong>Sigmoid</strong> tính toán xác suất độc lập trong khoảng $[0, 1]$ cho từng đầu ra. Hàm <strong>Softmax</strong> ép tổng xác suất các đầu ra bằng $1$, chỉ thích hợp cho phân loại đơn nhãn (chỉ chọn duy nhất 1 thiết bị bật).
+            </p>
+          </div>
+        </div>
+        <div class="col anim">
+          <div class="card" style="border-top: 4px solid var(--amber); height: 100%; display: flex; flex-direction: column; justify-content: space-around;">
+            <div style="text-align: center; padding: 10px;">
+              <span style="font-size: 36px;">🎯</span>
+              <h4 style="margin: 8px 0; font-size: 16px; color: var(--text);">Sigmoid (Chính xác)</h4>
+              <span class="arch-chip" style="background: var(--green-dim); color: var(--green);">Bơm: 0.85 (ON) | Quạt: 0.70 (ON)</span>
+            </div>
+            <div style="text-align: center; padding: 10px; border-top: 1px dashed var(--border);">
+              <span style="font-size: 36px;">❌</span>
+              <h4 style="margin: 8px 0; font-size: 16px; color: var(--text-muted);">Softmax (Sai lệch)</h4>
+              <span class="arch-chip" style="background: var(--red-dim); color: var(--red);">Bơm: 0.85 (ON) | Quạt: 0.15 (OFF)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 21: Q&A 2 - INT8 Quantization -->
+    <section class="slide" data-chapter="qa-2">
+      <div class="anim"><span class="chapter-badge red">❓ PHẢN BIỆN HỘI ĐỒNG — CÂU 2</span></div>
+      <h2 class="anim">Lượng tử hóa INT8 & Representative Dataset</h2>
+      <p class="anim subtitle">Vai trò của tập dữ liệu đại diện và hiệu quả tài nguyên thực tế trên ESP32?</p>
+      
+      <div class="row" style="margin-top:10px; flex: 1;">
+        <div class="col anim">
+          <div class="card" style="border-left: 4px solid var(--blue); height: 100%;">
+            <h3 style="color:var(--blue); font-size: 18px; margin-bottom: 12px;">🔄 Quy trình chuyển đổi</h3>
+            <div class="arch-layers" style="gap: 8px;">
+              <div class="arch-layer layer-blue" style="border-radius: 8px;">
+                <div class="arch-label" style="width: 110px; padding: 8px 12px; font-size: 11px;">MÔ HÌNH GỐC</div>
+                <div class="arch-content" style="padding: 8px 12px; font-size: 11px;">Mạng nơ-ron Float32 (Keras/TensorFlow)</div>
+              </div>
+              <div class="arch-layer layer-amber" style="border-radius: 8px;">
+                <div class="arch-label" style="width: 110px; padding: 8px 12px; font-size: 11px; background: rgba(245,158,11,.15); color: var(--amber);">ĐẠI DIỆN</div>
+                <div class="arch-content" style="padding: 8px 12px; font-size: 11px;">Representative Dataset (128 mẫu) định hình dải động activations</div>
+              </div>
+              <div class="arch-layer layer-green" style="border-radius: 8px;">
+                <div class="arch-label" style="width: 110px; padding: 8px 12px; font-size: 11px;">MÔ HÌNH NHÚNG</div>
+                <div class="arch-content" style="padding: 8px 12px; font-size: 11px;">Lượng tử hóa INT8 toàn phần -> File model.h</div>
+              </div>
+            </div>
+            <p style="font-size: 14px; margin-top: 10px; color: var(--text-dim);">
+              Tập dữ liệu đại diện giúp xác định hệ số tỉ lệ (scaling factor) chính xác để đưa các giá trị kích hoạt động (activations) về dạng số nguyên 8-bit mà không làm suy giảm độ chính xác.
+            </p>
+          </div>
+        </div>
+        <div class="col anim">
+          <div class="card" style="border-left: 4px solid var(--purple); height: 100%; display: flex; flex-direction: column; justify-content: center;">
+            <h3 style="color:var(--purple); font-size: 18px; margin-bottom: 15px;">📊 Hiệu quả thực tế trên ESP32-WROOM</h3>
+            <div class="stat-grid" style="grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div class="stat-box" style="padding: 12px;">
+                <div class="stat-value" style="font-size: 28px;">~2.4 KB</div>
+                <div class="stat-label" style="font-size: 10px;">Dung lượng Flash</div>
+              </div>
+              <div class="stat-box" style="padding: 12px;">
+                <div class="stat-value" style="font-size: 28px;">&lt; 2 ms</div>
+                <div class="stat-label" style="font-size: 10px;">Tốc độ suy luận</div>
+              </div>
+            </div>
+            <p style="font-size: 13px; color: var(--text-muted); margin-top: 12px; line-height: 1.5;">
+              * Tiết kiệm bộ nhớ Flash nhường tài nguyên cho WiFi/MQTT client.<br>
+              * Thực thi bằng tập lệnh số nguyên (Integer math) không cần FPU phần cứng.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 22: Q&A 3 - Hysteresis -->
+    <section class="slide" data-chapter="qa-3">
+      <div class="anim"><span class="chapter-badge red">❓ PHẢN BIỆN HỘI ĐỒNG — CÂU 3</span></div>
+      <h2 class="anim">Cơ chế Hysteresis chống rung relay</h2>
+      <p class="anim subtitle">Ngưỡng bật ON = 0.60 và ngưỡng tắt OFF = 0.45 giải quyết vấn đề gì?</p>
+      
+      <div class="row" style="margin-top:10px; flex: 1;">
+        <div class="col anim">
+          <div class="card" style="border-left: 4px solid var(--red); height: 100%;">
+            <h3 style="color:var(--red); font-size: 18px; margin-bottom: 10px;">❌ Rủi ro khi không có Hysteresis</h3>
+            <p style="font-size: 14px; line-height: 1.6; margin-bottom: 12px;">
+              If dùng 1 ngưỡng cứng duy nhất (ví dụ $0.50$): Khi độ ẩm đất dao động nhỏ xung quanh ngưỡng ($0.49 \leftrightarrow 0.51$), mô hình TinyML sẽ đưa ra quyết định bật/tắt liên tục trong vài giây.
+            </p>
+            <p style="font-weight: 700; color: var(--red); font-size: 14px;">
+              ⚠️ Kết quả: Gây hiện tượng "Relay Chattering" (Rung tiếp điểm), làm hỏng rơ-le cơ học và chập cháy động cơ máy bơm nước.
+            </p>
+          </div>
+        </div>
+        <div class="col anim">
+          <div class="card" style="border-left: 4px solid var(--green); height: 100%;">
+            <h3 style="color:var(--green); font-size: 18px; margin-bottom: 10px;">✅ Giải pháp Hysteresis (Ngưỡng Trễ)</h3>
+            <div style="background: var(--bg-card-alt); border-radius: 8px; padding: 12px; margin-bottom: 10px; border-left: 3px solid var(--green);">
+              <span class="highlight" style="font-size: 14px;">Ngưỡng kích ON: &ge; 0.60</span>
+              <p style="font-size: 12px; margin: 4px 0 0 0; color: var(--text-dim);">Thiết bị chỉ bật khi xác suất TinyML vượt qua 0.60</p>
+            </div>
+            <div style="background: var(--bg-card-alt); border-radius: 8px; padding: 12px; border-left: 3px solid var(--red);">
+              <span class="highlight-amber" style="color: var(--red); font-size: 14px;">Ngưỡng ngắt OFF: &le; 0.45</span>
+              <p style="font-size: 12px; margin: 4px 0 0 0; color: var(--text-dim);">Thiết bị chỉ tắt khi xác suất TinyML giảm dưới 0.45</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 23: Q&A 4 - Dual-Board & Fallback -->
+    <section class="slide" data-chapter="qa-4">
+      <div class="anim"><span class="chapter-badge red">❓ PHẢN BIỆN HỘI ĐỒNG — CÂU 4</span></div>
+      <h2 class="anim">Kiến trúc Dual-board & Chế độ dự phòng Fallback</h2>
+      <p class="anim subtitle">Tại sao dùng 2 board? Cách kết nối giao tiếp khi mất mạng Internet?</p>
+      
+      <div class="row" style="margin-top:10px; flex: 1;">
+        <div class="col anim">
+          <div class="card" style="border-left: 4px solid var(--purple); height: 100%;">
+            <h3 style="color:var(--purple); font-size: 18px; margin-bottom: 12px;">📐 Tại sao tách biệt 2 board?</h3>
+            <ul style="font-size: 13px;">
+              <li><strong>Cách ly vật lý:</strong> Node cảm biến đặt trực tiếp ngoài ruộng dễ ẩm ướt; Node chấp hành (Relay 220V) và màn hình ở tủ điện kỹ thuật khô ráo.</li>
+              <li><strong>Chống nhiễu:</strong> Kéo dây cảm biến quá dài sẽ gây nhiễu tín hiệu I2C/ADC nặng nề.</li>
+              <li><strong>Tối ưu năng lượng:</strong> WROOM sleep sâu bằng pin; S3 cần nguồn liên tục để đóng relay.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="col anim">
+          <div class="card" style="border-left: 4px solid var(--cyan); height: 100%;">
+            <h3 style="color:var(--cyan); font-size: 18px; margin-bottom: 12px;">🌐 Giao tiếp Fallback Mode (TCP Socket)</h3>
+            <p style="font-size: 13px; line-height: 1.6; margin-bottom: 8px;">
+              Khi mất Internet, hệ thống chuyển sang chế độ dự phòng nội mạng:
+            </p>
+            <div style="background: var(--bg-card-alt); border-radius: 8px; padding: 10px; font-size: 12px; margin-bottom: 8px;">
+              <strong>1. Mạng nội bộ hoạt động:</strong> Truyền dữ liệu trực tiếp qua địa chỉ IP LAN (WROOM Client -> S3 Server).
+            </div>
+            <div style="background: var(--bg-card-alt); border-radius: 8px; padding: 10px; font-size: 12px;">
+              <strong>2. Mất hoàn toàn Wi-Fi:</strong> ESP32-S3 tự phát Wi-Fi AP cục bộ. WROOM tự kết nối vào AP này để truyền gói tin qua <strong>TCP Socket</strong>.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 24: Q&A 5 - 3-Tier Safety & Local Safety -->
+    <section class="slide" data-chapter="qa-5">
+      <div class="anim"><span class="chapter-badge red">❓ PHẢN BIỆN HỘI ĐỒNG — CÂU 5</span></div>
+      <h2 class="anim">Cơ chế an toàn 3 tầng khi mất Internet</h2>
+      <p class="anim subtitle">Mất kết nối Internet (mất Tầng 2 - Server Supervisor), tính an toàn được đảm bảo thế nào?</p>
+      
+      <div class="row" style="margin-top:10px; flex: 1;">
+        <div class="col-2 anim">
+          <div class="card" style="border-left: 4px solid var(--amber); height: 100%; display: flex; flex-direction: column; justify-content: center;">
+            <h3 style="color:var(--amber); font-size: 20px; margin-bottom: 12px;">🔒 Kích hoạt Local Safety Gate</h3>
+            <p style="font-size: 15px; line-height: 1.8; margin-bottom: 12px;">
+              Khi mất kết nối Server, bo mạch chấp hành ESP32-S3 sẽ tự kích hoạt chế độ bảo vệ cục bộ <strong>Local Safety Gate</strong>:
+            </p>
+            <ul style="font-size: 14px; line-height: 1.8;">
+              <li>Cấu hình khung giờ an toàn (Safety Windows) được lưu sẵn trong bộ nhớ không khả biến <strong>NVS (Non-Volatile Storage)</strong> của chip.</li>
+              <li>ESP32-S3 đối chiếu thời gian thực thông qua <strong>Module RTC vật lý</strong> (ví dụ: DS3231 có pin dự phòng) để tự động chặn các quyết định bật bơm ngoài giờ an toàn.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="col anim">
+          <div class="card" style="border-top: 4px solid var(--purple); height: 100%; display: flex; flex-direction: column; justify-content: center; text-align: center;">
+            <div style="font-size: 40px; margin-bottom: 10px;">⏰</div>
+            <h4 style="font-size: 16px; margin-bottom: 8px; color: var(--text);">RTC Phần Cứng Cục Bộ</h4>
+            <span class="arch-chip" style="background: var(--purple-dim); color: var(--purple); font-size: 12px; padding: 6px 12px;">Đảm bảo giờ chạy đúng giây</span>
+            <p style="font-size: 12px; color: var(--text-muted); margin-top: 10px;">Ngay cả khi mất điện hoặc mất Internet, RTC vẫn chạy bằng pin dự phòng riêng biệt.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 25: Q&A 6 - SSE vs WebSockets -->
+    <section class="slide" data-chapter="qa-6">
+      <div class="anim"><span class="chapter-badge red">❓ PHẢN BIỆN HỘI ĐỒNG — CÂU 6</span></div>
+      <h2 class="anim">Giao tiếp Real-time: SSE vs WebSockets</h2>
+      <p class="anim subtitle">Tại sao chọn SSE để đẩy dữ liệu telemetry? WebSockets dùng cho trường hợp nào?</p>
+      
+      <div class="row" style="margin-top:10px; flex: 1;">
+        <div class="col-2 anim">
+          <table style="width: 100%; font-size: 13px;">
+            <thead>
+              <tr>
+                <th>Đặc tính</th>
+                <th style="color:var(--green);">SSE (Server-Sent Events)</th>
+                <th>WebSockets</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Hướng truyền</strong></td>
+                <td style="color:var(--green); font-weight:600;">Một chiều (Server &rarr; Client)</td>
+                <td>Hai chiều (Bi-directional)</td>
+              </tr>
+              <tr>
+                <td><strong>Giao thức</strong></td>
+                <td>HTTP chuẩn, dễ qua firewall/tunnel</td>
+                <td>TCP riêng (ws://), cấu hình proxy phức tạp</td>
+              </tr>
+              <tr>
+                <td><strong>Tự động reconnect</strong></td>
+                <td style="color:var(--green); font-weight:600;">Có sẵn mặc định</td>
+                <td>Phải viết code tay</td>
+              </tr>
+              <tr>
+                <td><strong>Độ phức tạp</strong></td>
+                <td>Rất nhẹ, dễ triển khai và bảo trì</td>
+                <td>Nặng hơn, đòi hỏi quản lý kết nối phức tạp</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="col anim">
+          <div class="card" style="border-left: 4px solid var(--green); height: 100%; display: flex; flex-direction: column; justify-content: center;">
+            <h3 style="color:var(--green); font-size: 16px; margin-bottom: 8px;">💡 Nghiệp vụ phù hợp</h3>
+            <p style="font-size: 12px; line-height: 1.6;">
+              Hệ thống IoT nông nghiệp cần đẩy telemetry liên tục lên Web (phù hợp với <strong>SSE</strong>).
+            </p>
+            <p style="font-size: 12px; line-height: 1.6; margin-top: 8px;">
+              Các lệnh điều khiển từ người dùng xuống thiết bị là các thao tác đơn lẻ, gửi qua <strong>REST API (HTTP POST)</strong> kết hợp <strong>MQTT publish</strong> là đủ, không cần duy trì WebSockets hai chiều tốn tài nguyên.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 26: Q&A 7 - Database Optimization -->
+    <section class="slide" data-chapter="qa-7">
+      <div class="anim"><span class="chapter-badge red">❓ PHẢN BIỆN HỘI ĐỒNG — CÂU 7</span></div>
+      <h2 class="anim">Tối ưu hóa dữ liệu lớn Telemetry</h2>
+      <p class="anim subtitle">Tần suất 10s/gửi. Làm sao tránh quá tải MongoDB Atlas khi mở rộng quy mô?</p>
+      
+      <div class="row" style="margin-top:10px; flex: 1;">
+        <div class="col anim">
+          <div class="card" style="border-top: 4px solid var(--green); height: 100%; text-align: center;">
+            <div style="font-size: 32px; margin-bottom: 6px;">📊</div>
+            <h3 style="color:var(--green); font-size: 16px; margin-bottom: 8px;">MongoDB Time Series</h3>
+            <p style="font-size: 12px; line-height: 1.6; color: var(--text-dim);">
+              Sử dụng Time Series Collections chuyên biệt từ bản 5.0. Giúp nén dữ liệu tối đa trên đĩa và tăng tốc truy vấn theo thời gian thực.
+            </p>
+          </div>
+        </div>
+        <div class="col anim">
+          <div class="card" style="border-top: 4px solid var(--amber); height: 100%; text-align: center;">
+            <div style="font-size: 32px; margin-bottom: 6px;">📦</div>
+            <h3 style="color:var(--amber); font-size: 16px; margin-bottom: 8px;">Schema Bucketing</h3>
+            <p style="font-size: 12px; line-height: 1.6; color: var(--text-dim);">
+              Gom nhóm dữ liệu. Thay vì lưu mỗi bản ghi là 1 tài liệu, ta gom toàn bộ dữ liệu telemetry đo trong 1 giờ của thiết bị thành 1 tài liệu duy nhất dạng mảng.
+            </p>
+          </div>
+        </div>
+        <div class="col anim">
+          <div class="card" style="border-top: 4px solid var(--purple); height: 100%; text-align: center;">
+            <div style="font-size: 32px; margin-bottom: 6px;">💾</div>
+            <h3 style="color:var(--purple); font-size: 16px; margin-bottom: 8px;">Lưu trữ phân cấp</h3>
+            <p style="font-size: 12px; line-height: 1.6; color: var(--text-dim);">
+              Chỉ lưu dữ liệu chi tiết 10s trong 1 tháng. Dữ liệu cũ hơn được tổng hợp (Downsampling) thành trung bình giờ/ngày rồi chuyển sang Cold Storage.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 27: Q&A 8 - MQTT Security -->
+    <section class="slide" data-chapter="qa-8">
+      <div class="anim"><span class="chapter-badge red">❓ PHẢN BIỆN HỘI ĐỒNG — CÂU 8</span></div>
+      <h2 class="anim">Bảo mật truyền thông MQTT</h2>
+      <p class="anim subtitle">Rủi ro truyền plaintext qua cổng 1883 và cách khắc phục bằng mã hóa?</p>
+      
+      <div class="row" style="margin-top:10px; flex: 1;">
+        <div class="col anim">
+          <div class="card" style="border-left: 4px solid var(--red); height: 100%;">
+            <h3 style="color:var(--red); font-size: 16px; margin-bottom: 10px;">⚠️ Lỗ hổng & Nguy cơ</h3>
+            <ul style="font-size: 13px; line-height: 1.7;">
+              <li><strong>Plaintext (Cổng 1883):</strong> Dữ liệu cảm biến và lệnh điều khiển được truyền không mã hóa.</li>
+              <li><strong>Nghe lén (Sniffing):</strong> Kẻ tấn công trong mạng LAN có thể chặn bắt gói tin để lấy Username/Password của MQTT Broker.</li>
+              <li><strong>Chiếm quyền điều khiển:</strong> Gửi lệnh giả mạo để bật tắt máy bơm trái phép gây ngập úng hoặc hỏng cây trồng.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="col anim">
+          <div class="card" style="border-left: 4px solid var(--green); height: 100%;">
+            <h3 style="color:var(--green); font-size: 16px; margin-bottom: 10px;">🛡️ Giải pháp nâng cấp bảo mật</h3>
+            <div style="background: var(--bg-card-alt); border-radius: 8px; padding: 10px; font-size: 12px; margin-bottom: 8px; border-left: 3px solid var(--green);">
+              <strong>Mã hóa SSL/TLS (Cổng 8883):</strong> ESP32 sử dụng <code>WiFiClientSecure</code> và lưu chứng chỉ Root CA của Broker để bắt tay mã hóa đường truyền.
+            </div>
+            <div style="background: var(--bg-card-alt); border-radius: 8px; padding: 10px; font-size: 12px; border-left: 3px solid var(--blue);">
+              <strong>Xác thực hai chiều mTLS:</strong> Cấp chứng chỉ X.509 riêng cho từng ESP32 để Client và Broker xác minh danh tính chéo trước khi truyền tin.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 22: Thank You -->
     <section class="slide title-slide" data-chapter="end">
       <div class="anim title-school">BÁO CÁO ĐỒ ÁN TỐT NGHIỆP</div>
       <div class="anim title-divider"></div>
