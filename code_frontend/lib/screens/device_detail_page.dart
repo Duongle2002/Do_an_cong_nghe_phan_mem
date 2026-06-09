@@ -323,27 +323,21 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> with SingleTickerPr
   Future<void> _refreshControlState() async {
     final auth = Provider.of<AuthService>(context, listen: false);
     try {
-      final cmds = await Api.listCommands(auth.accessToken ?? '', deviceId: widget.device.id);
-      bool? pump, fan, light;
-      for (final c in cmds) {
-        if (c is Map<String, dynamic>) {
-          final target = c['target'] as String?;
-          final action = c['action'] as String?;
-          final isOn = action?.toUpperCase() == 'ON';
-          if (target == 'pump') pump = isOn;
-          if (target == 'fan') fan = isOn;
-          if (target == 'light') light = isOn;
-        }
+      final dev = await Api.getDevice(auth.accessToken ?? '', widget.device.id);
+      if (mounted) {
+        setState(() {
+          _pumpOn = dev['lastPumpState']?.toString().toUpperCase() == 'ON';
+          _fanOn = dev['lastFanState']?.toString().toUpperCase() == 'ON';
+          _lightOn = dev['lastLightState']?.toString().toUpperCase() == 'ON';
+        });
       }
-      if (mounted) setState(() {
-        if (pump != null) _pumpOn = pump;
-        if (fan != null) _fanOn = fan;
-        if (light != null) _lightOn = light;
-      });
     } catch (_) {}
   }
 
   void _initControls() {
+    _pumpOn = widget.device.lastPumpState?.toUpperCase() == 'ON';
+    _fanOn = widget.device.lastFanState?.toUpperCase() == 'ON';
+    _lightOn = widget.device.lastLightState?.toUpperCase() == 'ON';
     _refreshControlState();
     _loadDeviceSettings();
     final auth = Provider.of<AuthService>(context, listen: false);

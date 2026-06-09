@@ -5,6 +5,7 @@ import '../services/auth_service.dart';
 import '../services/api.dart';
 import '../models/device.dart';
 import '../models/sensor_data.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class InfoPage extends StatefulWidget {
   const InfoPage({super.key});
@@ -38,7 +39,9 @@ class _InfoPageState extends State<InfoPage> {
       _devices = rawDevs.map((e) => Device.fromJson(e as Map<String, dynamic>)).toList();
 
       if (_devices.isNotEmpty) {
-        final d = _devices.first;
+        final prefs = await SharedPreferences.getInstance();
+        final activeId = prefs.getString('active_device_id') ?? _devices.first.id;
+        final d = _devices.firstWhere((x) => x.id == activeId, orElse: () => _devices.first);
         final rawSensors = await Api.getSensorData(auth.accessToken ?? '', d.id, limit: 1);
         if (rawSensors.isNotEmpty) {
           _latestData = SensorData.fromJson(rawSensors.first as Map<String, dynamic>);
