@@ -18,6 +18,10 @@ export default function LoginPage() {
       await login(email, password)
       navigate('/devices', { replace: true })
     } catch (err) {
+      if (err.response?.data?.unverified) {
+        navigate('/register', { state: { email, step: 'otp' } })
+        return
+      }
       const msg = err?.response?.data?.message || err?.message || 'Đăng nhập thất bại'
       setError(msg)
     } finally {

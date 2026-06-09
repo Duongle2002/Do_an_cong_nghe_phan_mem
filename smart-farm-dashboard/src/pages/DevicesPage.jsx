@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useLocation, Link } from 'react-router-dom'
+import { useNavigate, useLocation, Link, useParams } from 'react-router-dom'
 import api from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import DeviceSettingsPanel from '../components/DeviceSettingsPanel'
@@ -13,6 +13,7 @@ import { checkSensorThresholds } from '../utils/preferences'
 export default function DevicesPage() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { id } = useParams()
   const { user, logout } = useAuth()
 
 
@@ -66,14 +67,32 @@ export default function DevicesPage() {
       try {
         const res = await api.get('/api/devices')
         if (!ignore) {
-          const devs = res.data || []
-          setDevices(devs)
-          // Prefer sensor node (non-S3) as default activeDevice for telemetry display
-          const sensorNode = devs.find(d => d.externalId && !d.externalId.startsWith('esp32s3-'))
-          if (sensorNode) {
-            setActiveDevice(sensorNode)
-          } else if (devs.length > 0) {
-            setActiveDevice(devs[0])
+          let devs = res.data || []
+          if (id) {
+            const targetDev = devs.find(d => d._id === id || d.externalId === id)
+            if (targetDev) {
+              if (user?.role === 'Admin') {
+                devs = devs.filter(d => d.ownerId === targetDev.ownerId)
+              }
+              setDevices(devs)
+              setActiveDevice(targetDev)
+            } else {
+              setDevices(devs)
+              const sensorNode = devs.find(d => d.externalId && !d.externalId.startsWith('esp32s3-'))
+              if (sensorNode) {
+                setActiveDevice(sensorNode)
+              } else if (devs.length > 0) {
+                setActiveDevice(devs[0])
+              }
+            }
+          } else {
+            setDevices(devs)
+            const sensorNode = devs.find(d => d.externalId && !d.externalId.startsWith('esp32s3-'))
+            if (sensorNode) {
+              setActiveDevice(sensorNode)
+            } else if (devs.length > 0) {
+              setActiveDevice(devs[0])
+            }
           }
         }
       } catch (e) {
@@ -84,7 +103,7 @@ export default function DevicesPage() {
     }
     load()
     return () => { ignore = true }
-  }, [])
+  }, [id])
 
   // Auto-sync active device type depending on activeTab
   useEffect(() => {
@@ -707,14 +726,38 @@ export default function DevicesPage() {
       <div className="dashboard-header">
         <div className="dashboard-title-group">
           <h1>{activeTab === 'overview' ? 'Tổng Quan' : activeTab === 'control' ? 'Điều Khiển' : activeTab === 'analytics' ? 'Phân Tích Dữ Liệu' : activeTab === 'ai' ? 'Trợ Lý AI' : 'Cài Đặt Thiết Bị'}</h1>
-          <div className="subtitle">HỆ THỐNG GIÁM SÁT V2.4</div>
+          <div className="subtitle" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 4, fontSize: 11 }}>
+            <span>HỆ THỐNG GIÁM SÁT V2.4</span>
+            {activeDevice && (
+              <>
+                <span className="muted" style={{ fontSize: 14 }}>•</span>
+                <span style={{ color: 'var(--accent)', fontWeight: 600, fontSize: 14 }}>
+                  📂 Thiết bị: {activeDevice.name}
+                </span>
+              </>
+            )}
+            {user?.role === 'Admin' && activeDevice?.ownerId && typeof activeDevice.ownerId === 'object' && (
+              <>
+                <span className="muted" style={{ fontSize: 14 }}>•</span>
+                <span style={{ color: '#ffa726', fontWeight: 600, fontSize: 14 }}>
+                  👤 Nông dân: {activeDevice.ownerId.name} ({activeDevice.ownerId.email})
+                </span>
+              </>
+            )}
+          </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
           {filteredSelectDevices.length > 1 && (
             <select
               value={activeDevice?._id}
-              onChange={(e) => setActiveDevice(devices.find(d => d._id === e.target.value))}
+              onChange={(e) => {
+                const nextDev = devices.find(d => d._id === e.target.value)
+                if (nextDev) {
+                  setActiveDevice(nextDev)
+                  navigate(id ? `/devices/${nextDev._id}?tab=${activeTab}` : `/devices?tab=${activeTab}`)
+                }
+              }}
               style={{ width: 'auto', padding: '6px 12px', fontSize: 13, borderRadius: 10, background: '#121620' }}
             >
               {filteredSelectDevices.map(d => (

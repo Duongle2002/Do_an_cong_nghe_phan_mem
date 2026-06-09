@@ -17,6 +17,7 @@ const scheduleRoutes = require('./routes/schedules.routes');
 const alertRoutes = require('./routes/alerts.routes');
 const alertRulesRoutes = require('./routes/alertRules.routes');
 const logRoutes = require('./routes/logs.routes');
+const systemConfigRoutes = require('./routes/systemConfig.routes');
 const { authenticate } = require('./middleware/auth');
 const { verifyAccessToken } = require('./utils/jwt');
 const User = require('./models/User');
@@ -56,6 +57,7 @@ app.use('/api/schedules', scheduleRoutes);
 app.use('/api/alerts', alertRoutes);
 app.use('/api/alert-rules', alertRulesRoutes);
 app.use('/api/logs', logRoutes);
+app.use('/api/system-config', systemConfigRoutes);
 
 // --- Server-Sent Events: live telemetry/actuator stream ---
 const sseClients = new Set();

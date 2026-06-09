@@ -770,7 +770,7 @@
       position: relative;
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
     }
-    
+
     .diagram-headers {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -782,7 +782,7 @@
       position: relative;
       z-index: 2;
     }
-    
+
     .header-col {
       padding: 10px;
       border-radius: 8px;
@@ -793,12 +793,31 @@
       background: rgba(255, 255, 255, 0.015);
       border: 1px solid rgba(255, 255, 255, 0.03);
     }
-    
-    .header-col.wroom { color: var(--green); border-color: rgba(16, 185, 129, 0.2); background: rgba(16, 185, 129, 0.03); }
-    .header-col.mqtt { color: var(--amber); border-color: rgba(245, 158, 11, 0.2); background: rgba(245, 158, 11, 0.03); }
-    .header-col.server { color: var(--purple); border-color: rgba(139, 92, 246, 0.2); background: rgba(139, 92, 246, 0.03); }
-    .header-col.s3 { color: var(--cyan); border-color: rgba(6, 182, 212, 0.2); background: rgba(6, 182, 212, 0.03); }
-    
+
+    .header-col.wroom {
+      color: var(--green);
+      border-color: rgba(16, 185, 129, 0.2);
+      background: rgba(16, 185, 129, 0.03);
+    }
+
+    .header-col.mqtt {
+      color: var(--amber);
+      border-color: rgba(245, 158, 11, 0.2);
+      background: rgba(245, 158, 11, 0.03);
+    }
+
+    .header-col.server {
+      color: var(--purple);
+      border-color: rgba(139, 92, 246, 0.2);
+      background: rgba(139, 92, 246, 0.03);
+    }
+
+    .header-col.s3 {
+      color: var(--cyan);
+      border-color: rgba(6, 182, 212, 0.2);
+      background: rgba(6, 182, 212, 0.03);
+    }
+
     .header-col small {
       display: block;
       font-size: 10px;
@@ -807,7 +826,7 @@
       text-transform: none;
       margin-top: 4px;
     }
-    
+
     .diagram-body {
       position: relative;
       display: flex;
@@ -815,7 +834,7 @@
       gap: 24px;
       padding-bottom: 20px;
     }
-    
+
     .diagram-body::before {
       content: '';
       position: absolute;
@@ -823,7 +842,7 @@
       bottom: 0;
       left: 0;
       right: 0;
-      background: 
+      background:
         linear-gradient(90deg, transparent calc(12.5% - 1px), var(--border) calc(12.5% - 1px), var(--border) calc(12.5% + 1px), transparent calc(12.5% + 1px)),
         linear-gradient(90deg, transparent calc(37.5% - 1px), var(--border) calc(37.5% - 1px), var(--border) calc(37.5% + 1px), transparent calc(37.5% + 1px)),
         linear-gradient(90deg, transparent calc(62.5% - 1px), var(--border) calc(62.5% - 1px), var(--border) calc(62.5% + 1px), transparent calc(62.5% + 1px)),
@@ -831,7 +850,7 @@
       pointer-events: none;
       z-index: 1;
     }
-    
+
     .diagram-row {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -839,7 +858,7 @@
       align-items: center;
       min-height: 48px;
     }
-    
+
     .diagram-card {
       background: var(--bg-card-alt);
       border: 1px solid var(--border);
@@ -853,11 +872,22 @@
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
       border-left: 3px solid var(--border);
     }
-    
-    .diagram-card.col-1 { grid-column: 1; border-left-color: var(--green); }
-    .diagram-card.col-3 { grid-column: 3; border-left-color: var(--purple); }
-    .diagram-card.col-4 { grid-column: 4; border-left-color: var(--cyan); }
-    
+
+    .diagram-card.col-1 {
+      grid-column: 1;
+      border-left-color: var(--green);
+    }
+
+    .diagram-card.col-3 {
+      grid-column: 3;
+      border-left-color: var(--purple);
+    }
+
+    .diagram-card.col-4 {
+      grid-column: 4;
+      border-left-color: var(--cyan);
+    }
+
     .diagram-card .card-title {
       display: block;
       font-weight: 700;
@@ -865,7 +895,7 @@
       margin-bottom: 3px;
       font-size: 12px;
     }
-    
+
     .diagram-card .card-desc {
       display: block;
       color: var(--text-dim);
@@ -873,7 +903,7 @@
       line-height: 1.4;
       font-size: 10px;
     }
-    
+
     .msg-arrow {
       position: relative;
       grid-column-start: 1;
@@ -884,7 +914,7 @@
       height: 32px;
       z-index: 5;
     }
-    
+
     .msg-arrow::before {
       content: '';
       position: absolute;
@@ -893,7 +923,7 @@
       top: 50%;
       transform: translateY(-50%);
     }
-    
+
     .msg-arrow::after {
       content: '▶';
       position: absolute;
@@ -901,49 +931,53 @@
       top: 50%;
       transform: translateY(-50%);
     }
-    
+
     /* Arrow classes */
     .arrow-1-to-2::before {
       left: 12.5%;
       width: 25%;
       background: linear-gradient(90deg, var(--green), var(--amber));
     }
+
     .arrow-1-to-2::after {
       left: calc(37.5% - 5px);
       color: var(--amber);
     }
-    
+
     .arrow-2-to-3::before {
       left: 37.5%;
       width: 25%;
       background: linear-gradient(90deg, var(--amber), var(--purple));
     }
+
     .arrow-2-to-3::after {
       left: calc(62.5% - 5px);
       color: var(--purple);
     }
-    
+
     .arrow-3-to-2::before {
       left: 37.5%;
       width: 25%;
       background: linear-gradient(90deg, var(--amber), var(--purple));
     }
+
     .arrow-3-to-2::after {
       content: '◀';
       left: calc(37.5% - 3px);
       color: var(--amber);
     }
-    
+
     .arrow-2-to-4::before {
       left: 37.5%;
       width: 50%;
       background: linear-gradient(90deg, var(--amber), var(--cyan));
     }
+
     .arrow-2-to-4::after {
       left: calc(87.5% - 5px);
       color: var(--cyan);
     }
-    
+
     .msg-label {
       background: #0f121a;
       padding: 3px 8px;
@@ -979,15 +1013,18 @@
       backdrop-filter: blur(12px);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
     }
+
     .back-dashboard-btn:hover {
       background: var(--green);
       color: #0a0e17;
       box-shadow: 0 0 15px var(--green-glow);
       transform: translateY(-2px);
     }
+
     .back-dashboard-btn svg {
       transition: transform 0.3s ease;
     }
+
     .back-dashboard-btn:hover svg {
       transform: translateX(-3px);
     }
@@ -998,11 +1035,11 @@
 
   <!-- Back to Dashboard Button -->
   <a href="/devices" class="back-dashboard-btn">
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"
+      stroke-linecap="round" stroke-linejoin="round">
       <line x1="19" y1="12" x2="5" y2="12"></line>
       <polyline points="12 19 5 12 12 5"></polyline>
     </svg>
-    Bảng điều khiển
   </a>
 
   <!-- Progress Bar -->
@@ -1759,7 +1796,7 @@
           <div class="header-col server">☁️ Node.js Server<small>Backend Logic</small></div>
           <div class="header-col s3">🔵 ESP32-S3<small>Bộ điều khiển Relay</small></div>
         </div>
-        
+
         <!-- Body -->
         <div class="diagram-body">
           <!-- Step 1: Read sensors -->
@@ -1769,7 +1806,7 @@
               <span class="card-desc">SensorManager.read()<br>AHT20 + BH1750 + Soil</span>
             </div>
           </div>
-          
+
           <!-- Step 2: Normalize -->
           <div class="diagram-row">
             <div class="diagram-card col-1">
@@ -1777,29 +1814,29 @@
               <span class="card-desc">normalizeRange() -> [0, 1]</span>
             </div>
           </div>
-          
+
           <!-- Step 3: TinyML Micro Inference -->
           <div class="diagram-row">
             <div class="diagram-card col-1">
               <span class="card-title">3. Dự Đoán TinyML</span>
-              <span class="card-desc">MicroInterpreter.Invoke()<br>Hysteresis (ON>=0.60/OFF<=0.45)</span>
+              <span class="card-desc">MicroInterpreter.Invoke()<br>Hysteresis (ON>=0.60/OFF<=0.45)< /span>
             </div>
           </div>
-          
+
           <!-- Step 4: Publish AI state -->
           <div class="diagram-row">
             <div class="msg-arrow arrow-1-to-2">
               <span class="msg-label">Pub: farm/{id}/ai_state</span>
             </div>
           </div>
-          
+
           <!-- Step 5: Forward payload -->
           <div class="diagram-row">
             <div class="msg-arrow arrow-2-to-3">
               <span class="msg-label">Forward to Node.js</span>
             </div>
           </div>
-          
+
           <!-- Step 6: Server Process logic -->
           <div class="diagram-row">
             <div class="diagram-card col-3">
@@ -1807,21 +1844,21 @@
               <span class="card-desc">checkSafetyWindows()<br>filterByOpMode()</span>
             </div>
           </div>
-          
+
           <!-- Step 7: Server Publish control command -->
           <div class="diagram-row">
             <div class="msg-arrow arrow-3-to-2">
               <span class="msg-label">Pub: farm/{id}/state</span>
             </div>
           </div>
-          
+
           <!-- Step 8: Forward command to S3 Controller -->
           <div class="diagram-row">
             <div class="msg-arrow arrow-2-to-4">
               <span class="msg-label">Forward to ESP32-S3</span>
             </div>
           </div>
-          
+
           <!-- Step 9: Control Relay -->
           <div class="diagram-row">
             <div class="diagram-card col-4">

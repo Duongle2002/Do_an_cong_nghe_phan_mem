@@ -15,7 +15,7 @@ const createDeviceValidators = [
 
 async function listDevices(req, res) {
   const query = req.user.role === 'Admin' ? {} : { ownerId: req.user.id };
-  const devices = await Device.find(query).lean();
+  const devices = await Device.find(query).populate('ownerId', 'name email').lean();
   res.json(devices);
 }
 
@@ -46,9 +46,10 @@ async function createDevice(req, res) {
 }
 
 async function getDevice(req, res) {
-  const device = await Device.findById(req.params.id).lean();
+  const device = await Device.findById(req.params.id).populate('ownerId', 'name email').lean();
   if (!device) return res.status(404).json({ message: 'Device not found' });
-  if (req.user.role !== 'Admin' && device.ownerId.toString() !== req.user.id) {
+  const ownerIdStr = device.ownerId && typeof device.ownerId === 'object' ? device.ownerId._id.toString() : device.ownerId.toString();
+  if (req.user.role !== 'Admin' && ownerIdStr !== req.user.id) {
     return res.status(403).json({ message: 'Forbidden' });
   }
   res.json(device);

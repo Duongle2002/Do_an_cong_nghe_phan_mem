@@ -74,14 +74,17 @@ async function checkAlertRules(deviceId, sensorData) {
           // Send email notification if enabled
           if (rule.notificationType === 'email' || rule.notificationType === 'all') {
             const owner = await User.findById(device.ownerId).lean();
-            if (owner && owner.email) {
-              console.log(`[Alert] Sending email to ${owner.email}`);
-              emailService.sendAlertEmail(
-                owner.email,
-                device.name,
-                message,
-                'warning'
-              ).catch(err => console.error('Email send failed:', err));
+            if (owner) {
+              const recipientEmail = owner.alertEmail || owner.email;
+              if (recipientEmail) {
+                console.log(`[Alert] Sending email to ${recipientEmail}`);
+                emailService.sendAlertEmail(
+                  recipientEmail,
+                  device.name,
+                  message,
+                  'warning'
+                ).catch(err => console.error('Email send failed:', err));
+              }
             }
           }
         }

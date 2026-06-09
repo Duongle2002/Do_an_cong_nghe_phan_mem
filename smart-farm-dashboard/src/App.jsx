@@ -3,10 +3,10 @@ import { Routes, Route, Navigate, Link, useLocation } from 'react-router-dom'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import DevicesPage from './pages/DevicesPage'
-import DeviceDetailPage from './pages/DeviceDetailPage'
 import CreateDevicePage from './pages/CreateDevicePage'
 import SettingsPage from './pages/SettingsPage'
 import PresentationPage from './pages/PresentationPage'
+import AdminDashboardPage from './pages/AdminDashboardPage'
 import { useAuth } from './context/AuthContext'
 
 function Private({ children }) {
@@ -63,6 +63,11 @@ export default function App() {
   const activeTab = searchParams.get('tab') || 'overview'
 
   if (isAuthed) {
+    // Redirect Admin to admin dashboard if accessing base /devices or /
+    if (user?.role === 'Admin' && (location.pathname === '/' || location.pathname === '/devices' || location.pathname === '/devices/')) {
+      return <Navigate to="/admin?tab=overview" replace />
+    }
+
     return (
       <div className="app-layout-sidebar">
         {/* Sidebar */}
@@ -78,47 +83,91 @@ export default function App() {
           </div>
 
           <nav className="sidebar-menu">
-            <Link
-              to="/devices?tab=overview"
-              className={`sidebar-link ${activeTab === 'overview' ? 'active' : ''}`}
-            >
-              <span style={{ fontSize: 16 }}>📊</span>
-              <span>Tổng quan</span>
-            </Link>
+            {user?.role === 'Admin' ? (
+              <>
+                <Link
+                  to="/admin?tab=overview"
+                  className={`sidebar-link ${location.pathname.startsWith('/admin') && activeTab === 'overview' ? 'active' : ''}`}
+                >
+                  <span style={{ fontSize: 16 }}>📊</span>
+                  <span>Tổng quan hệ thống</span>
+                </Link>
 
-            <Link
-              to="/devices?tab=control"
-              className={`sidebar-link ${activeTab === 'control' ? 'active' : ''}`}
-            >
-              <span style={{ fontSize: 16 }}>⚙️</span>
-              <span>Điều khiển</span>
-            </Link>
+                <Link
+                  to="/admin?tab=smtp"
+                  className={`sidebar-link ${location.pathname.startsWith('/admin') && activeTab === 'smtp' ? 'active' : ''}`}
+                >
+                  <span style={{ fontSize: 16 }}>📧</span>
+                  <span>Cấu hình SMTP</span>
+                </Link>
 
+                <Link
+                  to="/admin?tab=users"
+                  className={`sidebar-link ${location.pathname.startsWith('/admin') && activeTab === 'users' ? 'active' : ''}`}
+                >
+                  <span style={{ fontSize: 16 }}>👥</span>
+                  <span>Quản lý User</span>
+                </Link>
 
+                <Link
+                  to="/admin?tab=devices"
+                  className={`sidebar-link ${location.pathname.startsWith('/admin') && activeTab === 'devices' ? 'active' : ''}`}
+                >
+                  <span style={{ fontSize: 16 }}>🔌</span>
+                  <span>Quản lý Thiết bị</span>
+                </Link>
 
-            <Link
-              to="/devices?tab=analytics"
-              className={`sidebar-link ${activeTab === 'analytics' ? 'active' : ''}`}
-            >
-              <span style={{ fontSize: 16 }}>📈</span>
-              <span>Phân tích</span>
-            </Link>
+                <Link
+                  to="/admin?tab=logs"
+                  className={`sidebar-link ${location.pathname.startsWith('/admin') && activeTab === 'logs' ? 'active' : ''}`}
+                >
+                  <span style={{ fontSize: 16 }}>📜</span>
+                  <span>Nhật ký hệ thống</span>
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link
+                  to="/devices?tab=overview"
+                  className={`sidebar-link ${activeTab === 'overview' ? 'active' : ''}`}
+                >
+                  <span style={{ fontSize: 16 }}>📊</span>
+                  <span>Tổng quan</span>
+                </Link>
 
-            <Link
-              to="/devices?tab=ai"
-              className={`sidebar-link ${activeTab === 'ai' ? 'active' : ''}`}
-            >
-              <span style={{ fontSize: 16 }}>💬</span>
-              <span>Trợ lý AI</span>
-            </Link>
+                <Link
+                  to="/devices?tab=control"
+                  className={`sidebar-link ${activeTab === 'control' ? 'active' : ''}`}
+                >
+                  <span style={{ fontSize: 16 }}>⚙️</span>
+                  <span>Điều khiển</span>
+                </Link>
 
-            <Link
-              to="/devices?tab=device-settings"
-              className={`sidebar-link ${activeTab === 'device-settings' ? 'active' : ''}`}
-            >
-              <span style={{ fontSize: 16 }}>🔌</span>
-              <span>Cài đặt thiết bị</span>
-            </Link>
+                <Link
+                  to="/devices?tab=analytics"
+                  className={`sidebar-link ${activeTab === 'analytics' ? 'active' : ''}`}
+                >
+                  <span style={{ fontSize: 16 }}>📈</span>
+                  <span>Phân tích</span>
+                </Link>
+
+                <Link
+                  to="/devices?tab=ai"
+                  className={`sidebar-link ${activeTab === 'ai' ? 'active' : ''}`}
+                >
+                  <span style={{ fontSize: 16 }}>💬</span>
+                  <span>Trợ lý AI</span>
+                </Link>
+
+                <Link
+                  to="/devices?tab=device-settings"
+                  className={`sidebar-link ${activeTab === 'device-settings' ? 'active' : ''}`}
+                >
+                  <span style={{ fontSize: 16 }}>🔌</span>
+                  <span>Cài đặt thiết bị</span>
+                </Link>
+              </>
+            )}
           </nav>
         </aside>
 
@@ -129,8 +178,9 @@ export default function App() {
             <Route path="/register" element={<Navigate to="/devices" replace />} />
             <Route path="/devices" element={<Private><DevicesPage /></Private>} />
             <Route path="/devices/new" element={<Private><CreateDevicePage /></Private>} />
-            <Route path="/devices/:id" element={<Private><DeviceDetailPage /></Private>} />
+            <Route path="/devices/:id" element={<Private><DevicesPage /></Private>} />
             <Route path="/settings" element={<Private><SettingsPage /></Private>} />
+            <Route path="/admin/*" element={<Private><AdminDashboardPage /></Private>} />
             <Route path="*" element={<Navigate to="/devices" replace />} />
           </Routes>
         </main>

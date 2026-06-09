@@ -21,6 +21,21 @@ export function AuthProvider({ children }) {
     localStorage.setItem('user', JSON.stringify(user))
   }
 
+  function loginWithSession(data) {
+    const { accessToken, refreshToken, user } = data
+    setAccessToken(accessToken)
+    setRefreshToken(refreshToken)
+    setUser(user)
+    localStorage.setItem('accessToken', accessToken)
+    localStorage.setItem('refreshToken', refreshToken)
+    localStorage.setItem('user', JSON.stringify(user))
+  }
+
+  function updateUser(updatedUser) {
+    setUser(updatedUser)
+    localStorage.setItem('user', JSON.stringify(updatedUser))
+  }
+
   function logout() {
     setAccessToken(null)
     setRefreshToken(null)
@@ -30,7 +45,7 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('user')
   }
 
-  const value = useMemo(() => ({ user, accessToken, refreshToken, isAuthed, login, logout }), [user, accessToken, refreshToken, isAuthed])
+  const value = useMemo(() => ({ user, accessToken, refreshToken, isAuthed, login, loginWithSession, logout, updateUser }), [user, accessToken, refreshToken, isAuthed])
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>
 }
 
