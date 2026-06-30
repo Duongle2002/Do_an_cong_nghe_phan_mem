@@ -359,12 +359,12 @@ export default function ControlTab({
                     }} style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                       <label style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 100 }}>
                         <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Bắt đầu</span>
-                        <input type="time" name="start" required style={{ padding: '8px 10px', fontSize: 13, background: '#121620', border: '1px solid var(--border)', color: '#fff', borderRadius: 6 }} />
+                        <input type="time" name="start" required style={{ padding: '8px 10px', fontSize: 13, background: 'var(--bg-sidebar)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 6 }} />
                       </label>
                       <span style={{ fontSize: 13, color: 'var(--text-muted)', alignSelf: 'center', paddingBottom: 8 }}>đến</span>
                       <label style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 100 }}>
                         <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Kết thúc</span>
-                        <input type="time" name="end" required style={{ padding: '8px 10px', fontSize: 13, background: '#121620', border: '1px solid var(--border)', color: '#fff', borderRadius: 6 }} />
+                        <input type="time" name="end" required style={{ padding: '8px 10px', fontSize: 13, background: 'var(--bg-sidebar)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 6 }} />
                       </label>
                       <button className="btn btn-primary" type="submit" style={{ fontSize: 13, padding: '9px 16px', height: 38 }}>
                         + Thêm

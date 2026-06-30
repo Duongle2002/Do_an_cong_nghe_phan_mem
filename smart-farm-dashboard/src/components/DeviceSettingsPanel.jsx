@@ -247,7 +247,7 @@ export default function DeviceSettingsPanel({ devices, setDevices, activeDevice,
                         value={pairingVal}
                         onChange={(e) => setPairingSelected(prev => ({ ...prev, [dev._id]: e.target.value }))}
                         disabled={isBusy}
-                        style={{ flex: 1, padding: '6px 10px', fontSize: 13, borderRadius: 8, background: '#0a0d14' }}
+                        style={{ flex: 1, padding: '6px 10px', fontSize: 13, borderRadius: 8, background: 'var(--bg-sidebar)' }}
                       >
                         <option value="">-- Chọn Node (Chưa ghép đôi) --</option>
                         {sensorNodes.map(s => (
@@ -338,9 +338,9 @@ export default function DeviceSettingsPanel({ devices, setDevices, activeDevice,
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 16
         }} onClick={() => setShowCreateModal(false)}>
-          <div style={{
-            background: '#0f121a', border: '1px solid var(--border)', borderRadius: 16,
-            width: '100%', maxWidth: 480, overflow: 'hidden', boxShadow: '0 24px 48px rgba(0,0,0,0.8)'
+          <div className="modal-content" style={{
+            background: 'var(--bg-sidebar)', border: '1px solid var(--border)', borderRadius: 16,
+            width: '100%', maxWidth: 480, overflow: 'hidden', boxShadow: 'var(--shadow)'
           }} onClick={e => e.stopPropagation()}>
             <div style={{ height: 3, background: 'linear-gradient(90deg, #10b981, #34d399)' }} />
             
@@ -403,9 +403,9 @@ export default function DeviceSettingsPanel({ devices, setDevices, activeDevice,
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 16
         }} onClick={() => setShowEditModal(false)}>
-          <div style={{
-            background: '#0f121a', border: '1px solid var(--border)', borderRadius: 16,
-            width: '100%', maxWidth: 480, overflow: 'hidden', boxShadow: '0 24px 48px rgba(0,0,0,0.8)'
+          <div className="modal-content" style={{
+            background: 'var(--bg-sidebar)', border: '1px solid var(--border)', borderRadius: 16,
+            width: '100%', maxWidth: 480, overflow: 'hidden', boxShadow: 'var(--shadow)'
           }} onClick={e => e.stopPropagation()}>
             <div style={{ height: 3, background: 'linear-gradient(90deg, #ffb300, #ffa726)' }} />
             

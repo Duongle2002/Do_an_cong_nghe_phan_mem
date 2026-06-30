@@ -114,7 +114,7 @@ export default function RegisterPage() {
             </div>
             <div style={{
               fontSize: 26, fontWeight: 800, letterSpacing: '-0.5px',
-              background: 'linear-gradient(135deg, #e8f5e9, #34d399)',
+              background: 'linear-gradient(135deg, var(--primary), var(--primary-light))',
               WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
             }}>Xác minh email</div>
             <div style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>
@@ -155,7 +155,7 @@ export default function RegisterPage() {
                     border: otpError.includes('thành công') ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(239,83,80,0.3)',
                     borderRadius: 'var(--radius-sm)',
                     padding: '10px 14px',
-                    color: otpError.includes('thành công') ? '#a7f3d0' : '#ef9a9a', fontSize: 13,
+                    color: otpError.includes('thành công') ? 'var(--primary-600)' : '#e53935', fontSize: 13,
                   }}>
                     {otpError.includes('thành công') ? '✓' : '⚠'} {otpError}
                   </div>
@@ -230,7 +230,7 @@ export default function RegisterPage() {
           </div>
           <div style={{
             fontSize: 26, fontWeight: 800, letterSpacing: '-0.5px',
-            background: 'linear-gradient(135deg, #e8f5e9, #34d399)',
+            background: 'linear-gradient(135deg, var(--primary), var(--primary-light))',
             WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
           }}>Tạo tài khoản</div>
           <div style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>
@@ -272,7 +272,7 @@ export default function RegisterPage() {
                   border: '1px solid rgba(239,83,80,0.3)',
                   borderRadius: 'var(--radius-sm)',
                   padding: '10px 14px',
-                  color: '#ef9a9a', fontSize: 13,
+                  color: '#e53935', fontSize: 13,
                 }}>
                   ⚠ {error}
                 </div>

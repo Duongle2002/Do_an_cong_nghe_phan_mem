@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  database:
+    image: mongo:6.0
+    container_name: smartfarm-db
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+  backend:
+    build:
+      context: ./smart-farm-server
+      dockerfile: Dockerfile
+    container_name: smartfarm-backend
+    restart: always
+    ports:
+      - "4000:4000"
+    depends_on:
+      - database
+    environment:
+      - PORT=4000
+      - MONGO_URI=mongodb://database:27017/smartfarm
+      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET:-smartfarm-access-secret-key-12345}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-smartfarm-refresh-secret-key-12345}
+      - JWT_ACCESS_EXPIRES=15m
+      - JWT_REFRESH_EXPIRES=7d
+      - CORS_ORIGIN=${CORS_ORIGIN:-*}
+      - MQTT_URL=${MQTT_URL:-mqtt://broker.emqx.io:1883}
+      - MQTT_USERNAME=${MQTT_USERNAME:-}
+      - MQTT_PASSWORD=${MQTT_PASSWORD:-}
+      - MQTT_CLIENT_ID_PREFIX=smartfarm-srv
+      - MQTT_QOS=1
+
+  frontend:
+    build:
+      context: ./smart-farm-dashboard
+      dockerfile: Dockerfile
+      args:
+        # Default VITE_API_BASE_URL is empty string which makes Vite use relative requests,
+        # perfectly matching Nginx proxy configuration
+        - VITE_API_BASE_URL=${VITE_API_BASE_URL:-}
+    container_name: smartfarm-frontend
+    restart: always
+    ports:
+      # Map to port 8080 on the host by default to avoid collision with other local web services
+      - "${FRONTEND_PORT:-8080}:80"
+    depends_on:
+      - backend
+
+volumes:
+  mongo-data:
+    driver: local

@@ -7,6 +7,7 @@ import CreateDevicePage from './pages/CreateDevicePage'
 import SettingsPage from './pages/SettingsPage'
 import PresentationPage from './pages/PresentationPage'
 import AdminDashboardPage from './pages/AdminDashboardPage'
+import DemoPage from './pages/DemoPage'
 import { useAuth } from './context/AuthContext'
 
 function Private({ children }) {
@@ -56,6 +57,10 @@ export default function App() {
 
   if (location.pathname === '/presentation') {
     return <PresentationPage />
+  }
+
+  if (location.pathname === '/demo') {
+    return <DemoPage />
   }
 
   // Parse query params to highlight active sidebar link
@@ -157,6 +162,14 @@ export default function App() {
                 >
                   <span style={{ fontSize: 16 }}>💬</span>
                   <span>Trợ lý AI</span>
+                </Link>
+
+                <Link
+                  to="/devices?tab=simulator"
+                  className={`sidebar-link ${activeTab === 'simulator' ? 'active' : ''}`}
+                >
+                  <span style={{ fontSize: 16 }}>🎮</span>
+                  <span>Mô phỏng thiết bị</span>
                 </Link>
 
                 <Link

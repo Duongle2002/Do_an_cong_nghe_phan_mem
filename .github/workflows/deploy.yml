@@ -1,0 +1,33 @@
+name: Deploy Smart Farm Application
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  deploy:
+    name: Deploy to Proxmox LXC Container
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create environment configuration
+        run: |
+          # Create env file from GitHub Secrets (optional, docker-compose fallback values will be used if empty)
+          echo "JWT_ACCESS_SECRET=${{ secrets.JWT_ACCESS_SECRET }}" > .env
+          echo "JWT_REFRESH_SECRET=${{ secrets.JWT_REFRESH_SECRET }}" >> .env
+          echo "MQTT_URL=${{ secrets.MQTT_URL }}" >> .env
+          echo "MQTT_USERNAME=${{ secrets.MQTT_USERNAME }}" >> .env
+          echo "MQTT_PASSWORD=${{ secrets.MQTT_PASSWORD }}" >> .env
+
+      - name: Build and run Docker containers
+        run: |
+          docker compose down
+          docker compose up -d --build
+
+      - name: Clean up unused Docker images
+        run: |
+          docker image prune -f

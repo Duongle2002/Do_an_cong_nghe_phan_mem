@@ -52,14 +52,14 @@ export default function DeviceEditModal({ isOpen, onClose, device, onSaved, show
       zIndex: 9999,
       padding: 16
     }} onClick={onClose}>
-      <div style={{
-        background: '#0f121a',
+      <div className="modal-content" style={{
+        background: 'var(--bg-sidebar)',
         border: '1px solid var(--border)',
         borderRadius: 16,
         width: '100%',
         maxWidth: 480,
         overflow: 'hidden',
-        boxShadow: '0 24px 48px rgba(0,0,0,0.8)'
+        boxShadow: 'var(--shadow)'
       }} onClick={e => e.stopPropagation()}>
         <div style={{ height: 3, background: 'linear-gradient(90deg, #10b981, #34d399)' }} />
         <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

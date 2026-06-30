@@ -1,0 +1,479 @@
+/* Device Simulator CSS */
+
+.simulator-container {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  padding-bottom: 30px;
+  animation: fadeIn 0.4s ease-out;
+}
+
+@media (min-width: 1024px) {
+  .simulator-container {
+    grid-template-columns: 380px 1fr;
+  }
+}
+
+/* Glassmorphism Controls Card */
+.simulator-card {
+  background: var(--bg-card, rgba(30, 41, 59, 0.7));
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-lg, 16px);
+  padding: 24px;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  transition: all 0.3s ease;
+}
+
+.simulator-card:hover {
+  border-color: rgba(16, 185, 129, 0.2);
+  box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.25);
+}
+
+.simulator-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 12px;
+}
+
+.simulator-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text, #f8fafc);
+  margin: 0;
+}
+
+/* Status Indicator */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: all 0.3s ease;
+}
+
+.status-badge.connected {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.status-badge.connecting {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.status-badge.disconnected {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* Pulse Animation for Connection */
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: currentColor;
+}
+
+.connected .pulse-dot {
+  animation: pulse-green 1.5s infinite;
+}
+
+.connecting .pulse-dot {
+  animation: pulse-yellow 1.5s infinite;
+}
+
+@keyframes pulse-green {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+@keyframes pulse-yellow {
+  0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
+  70% { box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+
+/* Form Styles */
+.sim-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sim-form-group label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim, #94a3b8);
+  display: flex;
+  justify-content: space-between;
+}
+
+.sim-slider-val {
+  color: var(--accent, #10b981);
+  font-family: monospace;
+  font-weight: bold;
+}
+
+.sim-slider {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.1);
+  outline: none;
+  transition: background 0.3s;
+}
+
+.sim-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent, #10b981);
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+  transition: transform 0.1s;
+}
+
+.sim-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+/* Visualization Display */
+.visualization-panel {
+  background: var(--bg-card, rgba(30, 41, 59, 0.7));
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-lg, 16px);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-height: 480px;
+  position: relative;
+  overflow: hidden;
+}
+
+.greenhouse-canvas {
+  flex: 1;
+  height: 380px;
+  background: linear-gradient(to bottom, #0f172a, #1e293b);
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Greenhouse glass frame */
+.greenhouse-structure {
+  position: absolute;
+  inset: 12px;
+  border: 2px dashed rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  pointer-events: none;
+}
+
+/* Soil layers */
+.soil-bed {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 100px;
+  background-color: #5c4033; /* Default dry brown */
+  border-top: 4px solid #3d2b1f;
+  transition: background-color 0.8s ease;
+  z-index: 2;
+}
+
+.soil-grass {
+  position: absolute;
+  top: -6px;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background: #10b981;
+  opacity: 0.3;
+}
+
+/* Actuators */
+/* 1. FAN */
+.fan-container {
+  position: absolute;
+  top: 30px;
+  right: 35px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.fan-frame {
+  width: 60px;
+  height: 60px;
+  border: 3px solid #64748b;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  box-shadow: 0 0 15px rgba(0,0,0,0.5);
+}
+
+.fan-blades {
+  width: 48px;
+  height: 48px;
+  background: repeating-conic-gradient(from 0deg, #94a3b8 0deg 30deg, transparent 30deg 120deg);
+  border-radius: 50%;
+  transition: transform 0.1s linear;
+}
+
+.fan-blades.spinning {
+  animation: spin-clockwise 0.4s linear infinite;
+}
+
+@keyframes spin-clockwise {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* 2. PUMP / SPRINKLER */
+.sprinkler-system {
+  position: absolute;
+  top: 15px;
+  left: 10%;
+  right: 10%;
+  height: 10px;
+  background: #475569;
+  border-radius: 5px;
+  z-index: 5;
+}
+
+.nozzle {
+  position: absolute;
+  bottom: -4px;
+  width: 6px;
+  height: 6px;
+  background: #94a3b8;
+  border-radius: 50%;
+}
+
+.nozzle-1 { left: 25%; }
+.nozzle-2 { left: 50%; }
+.nozzle-3 { left: 75%; }
+
+/* Spraying Water Animation */
+.water-spray {
+  position: absolute;
+  top: 21px;
+  width: 20px;
+  height: 200px;
+  background: linear-gradient(to bottom, rgba(56, 189, 248, 0.4), transparent);
+  clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.water-spray.spraying {
+  animation: spray-drip 0.5s ease-in-out infinite alternate;
+  opacity: 1;
+}
+
+@keyframes spray-drip {
+  0% { transform: scaleX(0.8); opacity: 0.5; }
+  100% { transform: scaleX(1.2); opacity: 0.8; }
+}
+
+/* 3. LIGHT / BULB */
+.bulb-container {
+  position: absolute;
+  top: 20px;
+  left: 30%;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.bulb-wire {
+  width: 2px;
+  height: 25px;
+  background: #64748b;
+}
+
+.bulb-body {
+  width: 24px;
+  height: 30px;
+  background: #475569;
+  border-radius: 50% 50% 40% 40%;
+  position: relative;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+}
+
+.bulb-glow {
+  position: absolute;
+  top: 15px;
+  left: 50%;
+  transform: translate(-50%, -10px);
+  width: 120px;
+  height: 120px;
+  background: radial-gradient(circle, rgba(253, 224, 71, 0.3) 0%, rgba(253, 224, 71, 0) 70%);
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  z-index: 3;
+}
+
+.bulb-body.glowing {
+  background: #fde047;
+  box-shadow: 0 0 20px #fde047, 0 0 40px rgba(253, 224, 71, 0.4);
+}
+
+.bulb-body.glowing + .bulb-glow {
+  opacity: 1;
+}
+
+/* Plants drawing */
+.plant-row {
+  position: absolute;
+  bottom: 78px;
+  left: 40px;
+  right: 40px;
+  display: flex;
+  justify-content: space-around;
+  z-index: 3;
+}
+
+.plant {
+  width: 60px;
+  height: 90px;
+  transition: all 0.5s ease;
+}
+
+/* Plant SVG animations */
+.leaf-green {
+  fill: #10b981;
+  transition: fill 0.8s ease, transform 0.5s ease;
+}
+
+.leaf-withered {
+  fill: #b45309;
+  transform: scaleY(0.7) rotate(15deg);
+}
+
+.leaf-wet {
+  fill: #047857;
+}
+
+/* Console Log panel */
+.sim-console {
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 12px;
+  color: #38bdf8;
+  height: 140px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: inset 0 2px 8px rgba(0,0,0,0.8);
+}
+
+.console-line {
+  line-height: 1.4;
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
+.console-time {
+  color: #64748b;
+  margin-right: 6px;
+}
+
+.console-msg-in {
+  color: #a855f7; /* Incoming message */
+}
+
+.console-msg-out {
+  color: #10b981; /* Outgoing telemetry */
+}
+
+.console-msg-system {
+  color: #e2e8f0;
+}
+
+.console-msg-err {
+  color: #f43f5e;
+}
+
+/* Controls Grid inside visualizer footer */
+.vis-badge-panel {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.actuator-status-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 10px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.actuator-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim, #94a3b8);
+}
+
+.actuator-state-badge {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-block;
+  margin: 0 auto;
+}
+
+.actuator-state-badge.on {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
+
+.actuator-state-badge.off {
+  background: rgba(255, 255, 255, 0.05);
+  color: #64748b;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}

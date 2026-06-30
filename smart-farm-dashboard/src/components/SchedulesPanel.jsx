@@ -125,7 +125,7 @@ export default function SchedulesPanel({ deviceId }) {
             ].map(({ label, field, opts }) => (
               <label key={field} style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 120, flex: 1 }}>
                 <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>{label}</span>
-                <select value={form[field]} onChange={e => setField(field, e.target.value)} style={{ padding: '8px 10px', fontSize: 13, background: '#121620' }}>
+                <select value={form[field]} onChange={e => setField(field, e.target.value)} style={{ padding: '8px 10px', fontSize: 13, background: 'var(--bg-sidebar)' }}>
                   {opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                 </select>
               </label>
@@ -134,7 +134,7 @@ export default function SchedulesPanel({ deviceId }) {
             {form.repeat === 'weekly' && (
               <label style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 80 }}>
                 <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Thứ</span>
-                <select value={form.weekday} onChange={e => setField('weekday', Number(e.target.value))} style={{ padding: '8px 10px', fontSize: 13, background: '#121620' }}>
+                <select value={form.weekday} onChange={e => setField('weekday', Number(e.target.value))} style={{ padding: '8px 10px', fontSize: 13, background: 'var(--bg-sidebar)' }}>
                   {weekdays.map(w => <option key={w.value} value={w.value}>{w.label}</option>)}
                 </select>
               </label>
@@ -142,7 +142,7 @@ export default function SchedulesPanel({ deviceId }) {
 
             <label style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 100 }}>
               <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Giờ</span>
-              <input type="time" value={form.time} onChange={e => setField('time', e.target.value)} style={{ padding: '8px 10px', fontSize: 13, background: '#121620', width: 'auto' }} />
+              <input type="time" value={form.time} onChange={e => setField('time', e.target.value)} style={{ padding: '8px 10px', fontSize: 13, background: 'var(--bg-sidebar)', width: 'auto' }} />
             </label>
 
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, paddingBottom: 10 }}>

@@ -8,6 +8,7 @@ import OverviewTab from '../components/OverviewTab'
 import ControlTab from '../components/ControlTab'
 import AnalyticsTab from '../components/AnalyticsTab'
 import AiTab from '../components/AiTab'
+import SimulatorTab from '../components/SimulatorTab'
 import { checkSensorThresholds } from '../utils/preferences'
 
 export default function DevicesPage() {
@@ -725,7 +726,7 @@ export default function DevicesPage() {
       {/* Universal Dashboard Header */}
       <div className="dashboard-header">
         <div className="dashboard-title-group">
-          <h1>{activeTab === 'overview' ? 'Tổng Quan' : activeTab === 'control' ? 'Điều Khiển' : activeTab === 'analytics' ? 'Phân Tích Dữ Liệu' : activeTab === 'ai' ? 'Trợ Lý AI' : 'Cài Đặt Thiết Bị'}</h1>
+          <h1>{activeTab === 'overview' ? 'Tổng Quan' : activeTab === 'control' ? 'Điều Khiển' : activeTab === 'analytics' ? 'Phân Tích Dữ Liệu' : activeTab === 'ai' ? 'Trợ Lý AI' : activeTab === 'simulator' ? 'Mô Phỏng Thiết Bị' : 'Cài Đặt Thiết Bị'}</h1>
           <div className="subtitle" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 4, fontSize: 11 }}>
             <span>HỆ THỐNG GIÁM SÁT V2.4</span>
             {activeDevice && (
@@ -758,7 +759,7 @@ export default function DevicesPage() {
                   navigate(id ? `/devices/${nextDev._id}?tab=${activeTab}` : `/devices?tab=${activeTab}`)
                 }
               }}
-              style={{ width: 'auto', padding: '6px 12px', fontSize: 13, borderRadius: 10, background: '#121620' }}
+              style={{ width: 'auto', padding: '6px 12px', fontSize: 13, borderRadius: 10, background: 'var(--bg-sidebar)' }}
             >
               {filteredSelectDevices.map(d => (
                 <option key={d._id} value={d._id}>{d.name}</option>
@@ -846,6 +847,14 @@ export default function DevicesPage() {
           setChatInput={setChatInput}
           isTyping={isTyping}
           handleSendChat={handleSendChat}
+        />
+      )}
+
+      {activeTab === 'simulator' && (
+        <SimulatorTab
+          devices={devices}
+          activeDevice={activeDevice}
+          setActiveDevice={setActiveDevice}
         />
       )}
 

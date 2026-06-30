@@ -604,7 +604,7 @@ export default function AdminDashboardPage() {
                       <div>
                         <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>Hệ thống đã cấu hình SMTP</h4>
                         <p style={{ margin: '4px 0 0 0', fontSize: 13, color: 'var(--text-dim)' }}>
-                          Tài khoản gửi: <strong style={{ color: '#fff' }}>{smtp.user}</strong> (máy chủ: {smtp.host}:{smtp.port}). Dịch vụ gửi email cảnh báo tự động: <span className={`badge ${smtp.enabled ? 'ok' : 'err'}`} style={{ fontSize: 9 }}>{smtp.enabled ? 'Đang bật' : 'Đang tắt'}</span>
+                          Tài khoản gửi: <strong style={{ color: 'var(--text)' }}>{smtp.user}</strong> (máy chủ: {smtp.host}:{smtp.port}). Dịch vụ gửi email cảnh báo tự động: <span className={`badge ${smtp.enabled ? 'ok' : 'err'}`} style={{ fontSize: 9 }}>{smtp.enabled ? 'Đang bật' : 'Đang tắt'}</span>
                         </p>
                       </div>
                     </div>
@@ -1050,7 +1050,7 @@ export default function AdminDashboardPage() {
                   <select
                     value={logsFilter}
                     onChange={(e) => setLogsFilter(e.target.value)}
-                    style={{ width: 'auto', padding: '4px 10px', fontSize: 12, borderRadius: 8, background: '#121620' }}
+                    style={{ width: 'auto', padding: '4px 10px', fontSize: 12, borderRadius: 8, background: 'var(--bg-sidebar)' }}
                   >
                     <option value="ALL">Tất cả</option>
                     <option value="Admin">Admin</option>

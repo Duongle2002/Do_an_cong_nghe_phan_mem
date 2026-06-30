@@ -37,15 +37,15 @@ export default function UserProfile({ user, logout }) {
       <div className="user-avatar">{userInitials}</div>
 
       {showProfileMenu && (
-        <div style={{
+        <div className="user-profile-dropdown" style={{
           position: 'absolute',
           top: '100%',
           right: 0,
           marginTop: 8,
-          background: '#0f121a',
+          background: 'var(--bg-sidebar)',
           border: '1px solid var(--border)',
           borderRadius: 12,
-          boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+          boxShadow: 'var(--shadow)',
           padding: '8px',
           zIndex: 1000,
           minWidth: 150,
