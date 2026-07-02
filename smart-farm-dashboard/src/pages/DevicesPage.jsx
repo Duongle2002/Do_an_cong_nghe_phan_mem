@@ -216,7 +216,7 @@ export default function DevicesPage() {
 
     function connect() {
       setSseStatus('connecting')
-      const url = `${import.meta.env.VITE_API_BASE_URL || 'https://api.duongle.io.vn'}/api/stream/devices/${activeDevice.externalId}?token=${encodeURIComponent(token)}`
+      const url = `${import.meta.env.VITE_API_BASE_URL ?? 'https://api.duongle.io.vn'}/api/stream/devices/${activeDevice.externalId}?token=${encodeURIComponent(token)}`
       const es = new EventSource(url)
       sseRef.current = es
 
@@ -379,7 +379,7 @@ export default function DevicesPage() {
     )
 
     otherDevices.forEach(dev => {
-      const url = `${import.meta.env.VITE_API_BASE_URL || 'https://api.duongle.io.vn'}/api/stream/devices/${dev.externalId}?token=${encodeURIComponent(token)}`
+      const url = `${import.meta.env.VITE_API_BASE_URL ?? 'https://api.duongle.io.vn'}/api/stream/devices/${dev.externalId}?token=${encodeURIComponent(token)}`
       try {
         const es = new EventSource(url)
         es.addEventListener('status', (evt) => {

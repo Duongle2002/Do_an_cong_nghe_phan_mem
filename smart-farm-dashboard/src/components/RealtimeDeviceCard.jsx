@@ -29,7 +29,7 @@ export default function RealtimeDeviceCard({ device }) {
       const token = localStorage.getItem('accessToken')
       if (token) {
         setSseStatus('connecting')
-        const url = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000'}/api/stream/devices/${device.externalId}?token=${encodeURIComponent(token)}`
+        const url = `${import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000'}/api/stream/devices/${device.externalId}?token=${encodeURIComponent(token)}`
         try {
           const es = new EventSource(url)
           esRef.current = es

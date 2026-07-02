@@ -5,8 +5,10 @@ services:
     image: mongo:6.0
     container_name: smartfarm-db
     restart: always
-    ports:
-      - "27017:27017"
+    # We don't need to expose port 27017 to the host since the backend communicates with
+    # the DB internally inside the Docker network. This avoids conflicts with your native host MongoDB.
+    # ports:
+    #   - "27017:27017"
     volumes:
       - mongo-data:/data/db
 
